@@ -136,19 +136,25 @@ This is an executable task plan. Complete one task at a time. After each task, u
 ## Phase 4 — Instrument identity
 
 ### Task 4.1 — Create instrument identity model
-- [ ] Support ISIN, exchange, symbol, provider key, asset type, and currency as available.
-- [ ] Distinguish the same company listed on NSE and BSE where the quote source requires it.
-- [ ] Avoid using display symbol alone as a universal identity.
-- [ ] Add alias/symbol-change handling design.
+- [x] Support canonical ID, ISIN, exchange, symbol, provider key, asset type, and currency.
+- [x] Distinguish exchange-specific NSE/BSE listings.
+- [x] Avoid using display symbol alone as a universal identity.
+- [ ] Add full alias/symbol-change history design.
 
 ### Task 4.2 — Add resolver and unresolved state
-- [ ] Evaluate permitted instrument-master sources.
-- [x] Resolve exact canonical IDs and ISIN+exchange matches at high confidence; unique ISIN/symbol matches at medium confidence.
-- [x] Keep ambiguous/unresolved records for user review.
-- [x] Add tests for NSE/BSE ambiguity, explicit ID mismatch, unique symbols, and unknown instruments.
-- [ ] Test aliases and renamed securities once instrument-master data is integrated.
+- [x] Resolve exact canonical/provider IDs and ISIN+exchange matches.
+- [x] Resolve unique ISIN/symbol matches at medium confidence; keep ambiguous matches unresolved.
+- [x] Add tests for NSE/BSE ambiguity, explicit ID mismatch, raw ISINs, provider keys, unique symbols, and unknown instruments.
+- [ ] Test aliases and renamed securities once instrument-master history is available.
 
-**Exit gate:** Instruments resolve deterministically or are explicitly unresolved.
+### Task 4.3 — Load a trusted instrument master
+- [x] Parse the official Upstox JSON BOD master for supported NSE/BSE cash-equity records.
+- [x] Preserve exchange-specific provider keys and report duplicate/incomplete records.
+- [x] Add a best-effort six-hour cache and fixture-based loader tests.
+- [x] Add a bounded public instrument-resolution endpoint and connect it to the CSV preview UI.
+- [ ] Verify the current live master download and broaden coverage for symbol changes and mutual funds.
+
+**Exit gate:** Instrument identity resolves deterministically or is visibly ambiguous/unresolved. The live master download and historical alias coverage remain to be verified.
 
 ## Phase 5 — Market data
 
@@ -157,23 +163,30 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [x] Review AMFI official NAV download/history notices and history-window limit.
 - [x] Document deployment constraints and server-side credential handling.
 - [x] Recommend Upstox for listed equity/ETF quotes and AMFI for mutual-fund NAVs as free-first sources.
-- [ ] Implement adapters and validate with fixtures; live verification still requires secure credential configuration.
 
 ### Task 5.2 — Implement equity/ETF quote adapter
-- [ ] Implement a provider interface and a single chosen adapter.
-- [ ] Validate instrument match, currency, price, quote type, timestamp, and freshness.
-- [ ] Add batching/cache/rate-limit behavior where permitted.
-- [ ] Report provider failures and missing prices explicitly.
-- [ ] Test using fixed provider-response fixtures, not live calls.
+- [x] Implement the Upstox Market Quote V3 adapter behind a typed interface.
+- [x] Validate instrument identity, currency, finite positive price, quote type, timestamps, and freshness.
+- [x] Add batches capped at 500 keys and explicit unavailable/error states.
+- [x] Test valid/stale/invalid/missing-key/missing-token/auth/rate-limit responses using fixtures.
+- [ ] Add endpoint cache and secure access controls before exposing live quotes to the UI.
 
 ### Task 5.3 — Implement mutual-fund NAV adapter
-- [x] Parse current 8-column AMFI NAV records with explicit Plan/Option fields and retain legacy 6-column support only for older fixtures.
+- [x] Parse current 8-column AMFI NAV records and retain legacy 6-column support for old fixtures.
 - [x] Resolve NAV by explicit AMFI scheme code or unambiguous ISIN; preserve plan/option and valuation date.
 - [x] Validate positive finite NAV, currency, and freshness using the shared quote validator.
-- [x] Add tests for current/legacy formats, invalid rows/dates, ambiguous ISINs, and non-MF instruments.
-- [ ] Wire NAV fetch/cache into a server-side application path and verify against a captured current AMFI response.
+- [x] Test current/legacy formats, invalid rows/dates, ambiguous ISINs, and non-MF instruments.
+- [ ] Fetch/cache the current AMFI feed server-side and verify against a captured live response.
 
-**Exit gate:** Every displayed price/NAV is traceable and validated.
+### Task 5.4 — Secure live quote/NAV wiring
+- [ ] Define the access-control model for the deployed app before exposing provider-backed endpoints.
+- [ ] Add bounded quote/NAV request APIs using verified canonical instruments only.
+- [ ] Add persistent/platform cache, rate limits, and provider-error handling.
+- [ ] Keep provider credentials server-side and disable live requests when required configuration is missing.
+- [ ] Connect quote provenance and stale/unavailable states to the P&L UI.
+- [ ] Ask the user only for the required deployment credential/access-control action if it cannot be configured through existing project permissions.
+
+**Exit gate:** Every displayed price/NAV is traceable and validated, or the UI clearly says it is unavailable. No public open proxy backed by a provider token.
 
 ## Phase 6 — UI and data-quality reporting
 
@@ -187,7 +200,7 @@ This is an executable task plan. Complete one task at a time. After each task, u
 ### Task 6.2 — Holdings and P&L UI
 - [x] Show realized, unrealized, market value, and economic P&L separately; label the FIFO preview and partial status.
 - [x] Show position break-even separately from lifecycle recovery price.
-- [ ] Show quote/NAV source, quote type, timestamp/valuation date, and stale/unavailable state.
+- [ ] Show quote/NAV source, quote type, timestamp/valuation date, and stale/unavailable state once live quotes are connected.
 - [x] Render missing financial values as Unavailable, never as ₹0.
 - [x] Show a partial/incomplete status when import issues, missing quotes, or ledger warnings exist.
 
