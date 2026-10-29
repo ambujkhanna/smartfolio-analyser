@@ -40,13 +40,15 @@ This is an executable task plan. Complete one task at a time. After each task, u
 **Exit gate:** App entry files exist and no mock financial results are shown. Build/lint verification remains outstanding.
 
 ### Task 0.3 — Establish automated test/build workflow
-- [ ] Add a minimal deterministic unit test and verify the Vitest configuration.
-- [ ] Add/verify ESLint configuration compatible with the installed ESLint 9 toolchain.
-- [ ] Add a CI workflow for install, lint, test, and production build.
-- [ ] Add a lockfile using the project's package manager when execution is available.
+- [x] Add a deterministic unit test for money formatting and missing/non-finite values.
+- [x] Add Vitest configuration.
+- [x] Add an ESLint 9 flat-config bridge for the Next.js rules.
+- [x] Add a GitHub Actions workflow for dependency install, lint, tests, and production build.
+- [ ] Add a committed npm lockfile when a package-manager runtime is available.
+- [ ] Observe a successful CI run and fix any issues it reports.
 - [ ] Record exact command results; do not infer success from configuration alone.
 
-**Exit gate:** Reproducible checks are defined and their actual status is recorded.
+**Exit gate:** Test/lint/build configuration exists. Task remains open until a committed lockfile and an observed successful CI run confirm reproducibility.
 
 ## Phase 1 — Financial-data integrity
 
