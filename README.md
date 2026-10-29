@@ -33,7 +33,7 @@ The current branch contains these modules:
 - **Canonical transaction validation:** Buy, sell, opening balance, fee, and dividend types, with field-level validation and source filename/row metadata.
 - **Quote validation:** Explicit available, unavailable, invalid, mismatched, and stale states; validates positive finite price, currency, instrument identity, source, and timestamps.
 - **Instrument resolution:** Exact canonical-ID, ISIN, exchange, and symbol matching. Ambiguous matches remain unresolved; no fuzzy matching.
-- **Instrument master loader:** Parses the official Upstox JSON BOD master for NSE/BSE cash-equity records, retaining exchange-specific provider keys and reporting duplicates/incomplete rows.
+- **Instrument master and resolver:** Parses the official Upstox JSON BOD master for NSE/BSE cash-equity records, retaining exchange-specific provider keys and reporting duplicates/incomplete rows. A bounded server endpoint resolves up to 100 identifiers per request; the CSV preview can display resolved, ambiguous, and unresolved states.
 - **FIFO ledger:** Buy lots, partial/full sales, sell/re-buy cycles, opening positions, trade-level charges, standalone fees/dividends, and structured errors/warnings.
 - **P&L calculations:** Realized/unrealized/economic P&L, market value, position break-even, and lifecycle recovery with completeness metadata.
 - **Market-data adapters:** Upstox Market Quote V3 adapter and AMFI NAV parsing/resolution code with fixed-response test fixtures.
