@@ -30,13 +30,14 @@ This is an executable task plan. Complete one task at a time. After each task, u
 **Exit gate:** We know what is actually present in this repository and do not assume old source files exist.
 
 ### Task 0.2 — Create the minimal Next.js app shell
-- [ ] Add App Router root layout, global CSS, and a minimal landing page.
-- [ ] Add the minimum Next.js configuration needed by the current package.
-- [ ] Ensure the page states that analysis is not available until transaction import and verified data are implemented.
-- [ ] Do not add fabricated portfolio values or sample market prices.
-- [ ] Inspect changed files and run build/lint if a runtime is available.
+- [x] Add App Router root layout, global CSS, and a minimal landing page.
+- [x] Add the minimum app entry files needed by the current package (no extra Next.js config was required for the files created).
+- [x] Ensure the page states that analysis is not available until transaction import and verified data are implemented.
+- [x] Do not add fabricated portfolio values or sample market prices.
+- [x] Fetch the changed files back from GitHub and inspect them.
+- [ ] Run build/lint in a runtime; this has not been available during this task.
 
-**Exit gate:** A real application entry point exists; no mock financial results are shown.
+**Exit gate:** App entry files exist and no mock financial results are shown. Build/lint verification remains outstanding.
 
 ### Task 0.3 — Establish automated test/build workflow
 - [ ] Add a minimal deterministic unit test and verify the Vitest configuration.
