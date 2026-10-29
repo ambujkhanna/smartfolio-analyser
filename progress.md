@@ -9,8 +9,8 @@
 
 ## Current status
 
-**Current phase/task:** Quality verification — validate protected quote endpoint and UI wiring  
-**Overall status:** The app now includes browser-side CSV preview, local P&L calculation preview, a public instrument-master resolver endpoint, and row-level instrument-resolution UI. The quote/NAV adapters are implemented and tested, but live quotes are not yet connected to the UI; the next step is to add a protected quote endpoint and cache.  
+**Current phase/task:** Phase 5, Task 5.3 — Connect AMFI NAV feed for mutual funds  
+**Overall status:** The app includes browser-side CSV preview, local P&L calculation preview, instrument resolution, a protected Upstox quote endpoint, quote provenance UI, and quote-to-position valuation mapping. Live equity quotes require server secrets and have not been verified against the real provider. Mutual-fund NAV parsing/resolution is implemented, but the AMFI feed loader and quote-route integration are still pending.  
 **Last fully green code checks:** GitHub Actions run [40817011727](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40817011727) passed clean `npm ci`, ESLint, 77 unit tests across 11 files, and production build before quote endpoint wiring. The first quote-endpoint run failed test collection due to route import paths; fixed. A later run passed lint and 82 tests but exposed an optional provider-key type, which was fixed. The following run passed lint and 82 tests but the build found a UI access to a non-existent `reason` field on the stale-quote variant. The UI now displays stale age and last-trade time from the actual quote metadata; a new full run is pending. A separate pure quote-to-position adapter is also implemented and tested.  
 **Lockfile:** `package-lock.json` is committed. The quality workflow uses `npm ci` when the lockfile exists. Documentation-only commits no longer trigger redundant CI runs.  
 **Current market-data state:** Provider adapters have fixture-based tests, but no live quote/NAV request is connected to the browser UI. No provider token has been configured in the deployment environment.
