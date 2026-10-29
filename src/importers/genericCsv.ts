@@ -192,7 +192,18 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
 
     const transactionId = valueAt(values, headers, ["transactionid", "tradeid", "executionid"]);
     const date = valueAt(values, headers, ["occurredat", "datetime", "timestamp", "date", "tradedate", "transactiondate"]);
-    const currency = valueAt(values, headers, ["currency", "curr"]);
+    const suppliedCurrency = valueAt(values, headers, ["currency", "curr"]);
+    const exchange = valueAt(values, headers, ["exchange", "exch"]);
+    const normalizedExchange = (exchange ?? "").trim().toUpperCase();
+    // Indian exchange tradebooks commonly omit currency because NSE/BSE cash
+    // equity trades are denominated in INR. Infer only for these explicit
+    // exchange values; do not guess a currency for unknown exchanges.
+    const currency =
+      suppliedCurrency?.trim()
+        ? suppliedCurrency.trim().toUpperCase()
+        : ["NSE", "BSE", "NSE_EQ", "BSE_EQ"].includes(normalizedExchange)
+          ? "INR"
+          : suppliedCurrency;
     const quantity = parseNumber(valueAt(values, headers, ["quantity", "qty", "shares", "units"]));
     const unitPrice = parseNumber(valueAt(values, headers, ["unitprice", "price", "rate", "tradeprice", "averageprice"]));
     const amountValue = valueAt(values, headers, ["amount", "netamount", "feeamount", "dividendamount"]);
