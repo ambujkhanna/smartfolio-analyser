@@ -29,11 +29,9 @@ export default function HomePage() {
         <div className="notice" role="status">
           <span className="notice-icon" aria-hidden="true">i</span>
           <div>
-            <strong>Portfolio analysis is not available yet</strong>
+            <strong>Portfolio calculation preview is available</strong>
             <p>
-              You can preview a CSV and review validation issues below. Portfolio
-              calculations and live market data are still being connected, so
-              this page does not display sample prices or placeholder P&amp;L.
+              You can preview CSV or delimited TXT files, review validation issues, and calculate P&amp;L from accepted rows. Live market values require verified quotes; spreadsheet and PDF imports are not enabled yet. No sample prices or placeholder P&amp;L are displayed.
             </p>
           </div>
         </div>
