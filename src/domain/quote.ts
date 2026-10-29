@@ -11,6 +11,8 @@ export interface MarketQuote {
   observedAt: string;
   /** Time this application retrieved the quote; distinct from the last-trade time. */
   retrievedAt?: string;
+  /** Provider's own response timestamp, when supplied. */
+  providerTimestamp?: string;
   /** Identifier used by the quote provider, when available. */
   providerInstrumentId?: string;
 }
