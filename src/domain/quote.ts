@@ -37,7 +37,12 @@ export function validateQuote(
     return { status: "unavailable", reason: "No quote was provided." };
   }
 
-  if (!expectedInstrumentId.trim() || candidate.instrumentId !== expectedInstrumentId) {
+  if (
+    typeof expectedInstrumentId !== "string" ||
+    !expectedInstrumentId.trim() ||
+    typeof candidate.instrumentId !== "string" ||
+    candidate.instrumentId !== expectedInstrumentId
+  ) {
     return {
       status: "mismatched",
       reason: "Quote instrument identity does not match the requested instrument.",
@@ -48,12 +53,24 @@ export function validateQuote(
     return { status: "invalid", reason: "Quote price must be a finite positive number." };
   }
 
-  if (!candidate.currency.trim() || (options.expectedCurrency && candidate.currency !== options.expectedCurrency)) {
+  if (
+    typeof candidate.currency !== "string" ||
+    !candidate.currency.trim() ||
+    (options.expectedCurrency && candidate.currency !== options.expectedCurrency)
+  ) {
     return { status: "mismatched", reason: "Quote currency is missing or does not match the expected currency." };
   }
 
-  if (!candidate.source.trim()) {
+  if (typeof candidate.source !== "string" || !candidate.source.trim()) {
     return { status: "invalid", reason: "Quote source is required." };
+  }
+
+  if (typeof candidate.observedAt !== "string") {
+    return { status: "invalid", reason: "Quote observation time is missing or invalid." };
+  }
+
+  if (!["real-time", "delayed", "end-of-day", "nav"].includes(candidate.quoteType)) {
+    return { status: "invalid", reason: "Quote type is missing or unsupported." };
   }
 
   const observedAtMs = Date.parse(candidate.observedAt);
