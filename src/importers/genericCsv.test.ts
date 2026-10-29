@@ -54,6 +54,7 @@ describe("parseGenericCsv", () => {
     );
     expect(result.acceptedCount).toBe(0);
     expect(result.rows[0].status).toBe("invalid");
+    expect(result.rows[0].rawValues).toHaveLength(7);
     expect(result.issues.some((issue) => issue.code === "DUPLICATE_HEADERS")).toBe(true);
   });
 
