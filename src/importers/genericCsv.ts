@@ -11,6 +11,8 @@ export interface CsvImportIssue {
 export interface CsvPreviewRow {
   rowNumber: number;
   raw: Record<string, string>;
+  /** Original cells in order, preserving duplicate header columns. */
+  rawValues: string[];
   status: "valid" | "invalid" | "needs-resolution";
   transaction?: CanonicalTransaction;
   issues: CsvImportIssue[];
@@ -135,6 +137,7 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
       rows.push({
         rowNumber,
         raw,
+        rawValues: values,
         status: "invalid",
         issues: rowParserIssues.map((issue) => ({ ...issue, rowNumber })),
       });
@@ -147,7 +150,7 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
         rowNumber,
         message: "This row cannot be normalized because the CSV header row is missing or ambiguous.",
       });
-      rows.push({ rowNumber, raw, status: "invalid", issues: rowIssues });
+      rows.push({ rowNumber, raw, rawValues: values, status: "invalid", issues: rowIssues });
       return;
     }
 
@@ -227,13 +230,13 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
 
     if (rowIssues.length > 0) {
       const status = needsResolution ? "needs-resolution" : "invalid";
-      rows.push({ rowNumber, raw, status, issues: rowIssues });
+      rows.push({ rowNumber, raw, rawValues: values, status, issues: rowIssues });
       return;
     }
 
     if (validation.status === "valid") {
       transactions.push(validation.transaction);
-      rows.push({ rowNumber, raw, status: "valid", transaction: validation.transaction, issues: [] });
+      rows.push({ rowNumber, raw, rawValues: values, status: "valid", transaction: validation.transaction, issues: [] });
     }
   });
 
