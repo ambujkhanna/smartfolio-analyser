@@ -49,8 +49,8 @@ function parseNumber(value: string | undefined): number | undefined {
   if (value === undefined || value.trim() === "") return undefined;
   const trimmed = value.trim();
   if (trimmed.includes(",")) {
-    const westernGrouping = /^[+-]?\\d{1,3}(,\\d{3})+(\\.\\d+)?$/;
-    const indianGrouping = /^[+-]?\\d{1,2}(,\\d{2})*,\\d{3}(\\.\\d+)?$/;
+    const westernGrouping = /^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/;
+    const indianGrouping = /^[+-]?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;
     if (!westernGrouping.test(trimmed) && !indianGrouping.test(trimmed)) return Number.NaN;
   }
   return Number(trimmed.replace(/,/g, ""));
