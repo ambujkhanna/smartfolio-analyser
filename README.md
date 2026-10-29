@@ -28,7 +28,7 @@ These metrics are not interchangeable. The selected cost method and all limitati
 The current branch contains these modules:
 
 - **Next.js app shell:** Landing page and application status notice.
-- **CSV preview:** Client-side CSV parsing with row preservation, accepted/rejected counts, source row details, and validation issues. Files are limited to 5 MB in the preview UI and are not uploaded to a server by this step.
+- **File preview (current):** Client-side CSV parsing with row preservation, accepted/rejected counts, source row details, and validation issues. The current UI accepts CSV only, with a 5 MB limit; the selected file is parsed in the browser and is not uploaded to a server by this step. Multi-format ingestion for TXT, XLS/XLSX, and text-based PDF is planned but is not implemented yet.
 - **P&L calculation preview:** Calculate accepted transaction rows locally and display realized P&L, open quantity, remaining cost basis, position break-even, and lifecycle recovery. Missing live quotes leave market value, unrealized P&L, and dependent economic P&L unavailable.
 - **Canonical transaction validation:** Buy, sell, opening balance, fee, and dividend types, with field-level validation and source filename/row metadata.
 - **Quote validation:** Explicit available, unavailable, invalid, mismatched, and stale states; validates positive finite price, currency, instrument identity, source, and timestamps.
@@ -90,6 +90,17 @@ npm run build
 ```
 
 The GitHub Actions workflow runs the same checks. The latest run passed a clean `npm ci`, lint, all 84 unit tests, and the production build. See the latest run linked in [progress.md](progress.md).
+
+## Planned multi-format imports
+
+The intended upload experience is to accept `.csv`, `.txt`, `.xls`, `.xlsx`, and text-based `.pdf` files, then route each file through a format-specific parser into the same row-preserving validation and review pipeline. Support will be explicit and tested per format:
+
+- **CSV/TXT:** delimited text with detected or selected delimiter and header validation.
+- **XLS/XLSX:** workbook sheet selection, visible header/row preservation, and clear warnings for empty or unsupported sheets.
+- **PDF:** text-layer extraction for tabular reports with page provenance. Scanned/image-only PDFs will be reported as requiring OCR; they will not be silently treated as empty transaction files.
+- **Other formats:** rejected with a clear supported-format message until a parser is implemented.
+
+A file extension alone does not make a document a valid transaction source. Tax summaries, capital-gains reports, holdings snapshots and transaction ledgers have different meanings and must be classified separately. File size, page/row count and parsing resource limits will be enforced. The intended default remains local/browser parsing; raw exports must not be committed as fixtures. This is a roadmap, not a claim that these formats are already supported.
 
 ## Generic CSV preview format
 
