@@ -9,9 +9,9 @@
 
 ## Current status
 
-**Current phase/task:** Add read-only reconciliation between imported-ledger open quantities and current Zerodha holdings. The user verified that all four Zerodha data buttons (holdings, positions, current-day orders, current-day trades) return data in the Preview browser. The reconciliation UI has been added on this branch; automated checks for the latest commits are pending. XLS/XLSX and PDF remain future parser tasks.  
-**Overall status:** The app includes browser-side CSV preview, local FIFO/P&L calculation, instrument resolution, a protected quote endpoint, quote provenance UI, and a read-only Zerodha Kite Connect integration. The user has verified live responses for holdings, positions, current-day orders, and current-day trades in the Vercel Preview browser. A new reconciliation panel compares imported-ledger open quantities with current Zerodha holdings by exact ISIN; it does not add holdings snapshots as transactions or alter P&L. Upstox quote/NAV provider calls remain separately unverified.  
-**Last verified code checks:** The latest previously confirmed quality run is [40826588884](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40826588884) on SHA `0b3f1ff4a7d0fe51eb6c3a60174e67a07ce14050`. Latest reconciliation changes are committed on `feat/reliable-pnl-foundation`; CI/lint/test/build for the new head has not yet been verified. Do not treat the new reconciliation UI as code-verified until checks pass.  
+**Current phase/task:** Implement automatic-first portfolio data acquisition and gap assessment. User requirement: do not require separate dividend, corporate-action, fee, or other reports when a connected broker/platform can supply the information; fetch and match available data automatically, then ask only for the specific missing source/value that cannot be obtained or reliably matched. The automatic-first acceptance criteria have been added to plan.md. The reconciliation UI and ISIN quantity aggregation are committed on `feat/reliable-pnl-foundation`; latest code CI/deployment is still pending. XLS/XLSX and PDF remain future parser tasks.  
+**Overall status:** The app includes browser-side CSV preview, local FIFO/P&L calculation, instrument resolution, a protected quote endpoint, quote provenance UI, and a read-only Zerodha Kite Connect integration. The user verified that holdings, positions, current-day orders, and current-day trades return data in Preview. Holdings reconciliation compares current broker quantities with ledger open quantities by ISIN and does not turn snapshots into transactions. Product direction is now automatic-first: pull supported data from each connected platform, match and deduplicate it, report coverage, and request files only for specific material gaps not exposed by the platform APIs. This is specified in plan.md but the cross-provider orchestration and gap-request UI are not yet implemented. Upstox live quote/NAV calls remain separately unverified.  
+**Last verified code checks:** The latest previously confirmed quality run is [40826588884](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40826588884) on SHA `0b3f1ff4a7d0fe51eb6c3a60174e67a07ce14050`. Recent reconciliation code and automatic-first plan changes are committed on `feat/reliable-pnl-foundation`; the newest code commit CI/deployment must pass before considering it verified. Do not treat new UI logic as code-verified until checks pass.  
 **Lockfile:** `package-lock.json` is committed. The quality workflow uses `npm ci` when the lockfile exists. Documentation-only commits no longer trigger redundant CI runs.  
 **Current market-data state:** The browser UI calls `/api/quotes` with the Smartfolio access key and recalculates valuations from returned quote results. The server route uses `SMARTFOLIO_ACCESS_KEY` and `UPSTOX_ANALYTICS_TOKEN`; AMFI NAV requests do not need the Upstox token. Live Zerodha account-data requests have been verified by the user in Preview. Live Upstox quote/NAV requests remain unverified.
 
@@ -42,6 +42,8 @@
 
 ## In progress
 
+- [ ] **Automatic-first data acquisition (product requirement):** Plan updated to retrieve all available broker data, deduplicate and reconcile it, assess coverage, and ask for user files only for specific gaps. The provider registry, cross-provider ingestion, coverage report, and targeted missing-data prompts are not implemented yet.
+
 - [ ] **Zerodha holdings reconciliation:** UI now compares the current holdings snapshot with imported-ledger open quantities using exact ISINs. Validate lint, TypeScript, build, and edge cases in CI before treating this as complete.
 
 - [ ] **Task 6.3:** Finish quality reporting and reconciliation states; broker holdings comparison and stale-quote display need live data wiring.
@@ -56,7 +58,7 @@
 - [ ] Production instrument master data and symbol-change/alias coverage.
 - [x] Protected server-side quote/NAV endpoint with cache, bounded request sizes, and access controls (best-effort in-memory limits; shared limits remain a production hardening item).
 - [x] Live quote/NAV retrieval connected to the import-review dashboard; live provider verification remains outstanding.
-- [ ] Broker holdings/opening-position import. Quantity reconciliation is implemented as a read-only comparison; do not convert a holdings snapshot into transactions because that would risk double counting.
+- [ ] Broker transaction/history ingestion and opening-position import. Quantity reconciliation is implemented as a read-only comparison; do not convert a holdings snapshot into transactions because that would risk double counting. Build automatic-first acquisition before asking for separate reports.
 - [ ] Persistent portfolio storage.
 - [ ] UI component tests for import review and P&L preview.
 - [ ] Final security review, deployment verification, and release PR.
