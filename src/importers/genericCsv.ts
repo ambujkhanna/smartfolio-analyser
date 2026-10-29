@@ -45,7 +45,13 @@ function valueAt(values: string[], headers: string[], aliases: string[]): string
 
 function parseNumber(value: string | undefined): number | undefined {
   if (value === undefined || value.trim() === "") return undefined;
-  return Number(value.trim().replace(/,/g, ""));
+  const trimmed = value.trim();
+  if (trimmed.includes(",")) {
+    const westernGrouping = /^[+-]?\\d{1,3}(,\\d{3})+(\\.\\d+)?$/;
+    const indianGrouping = /^[+-]?\\d{1,2}(,\\d{2})*,\\d{3}(\\.\\d+)?$/;
+    if (!westernGrouping.test(trimmed) && !indianGrouping.test(trimmed)) return Number.NaN;
+  }
+  return Number(trimmed.replace(/,/g, ""));
 }
 
 function parseKind(value: string | undefined): TransactionKind | undefined {
@@ -119,6 +125,21 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
     const values = record.map((value) => String(value ?? ""));
     const raw = rawRow(values, headers);
     const rowIssues: CsvImportIssue[] = [];
+
+    const rowParserIssues = globalIssues.filter(
+      (issue) =>
+        issue.code === "CSV_PARSE_ERROR" &&
+        (issue.rowNumber === rowNumber || issue.rowNumber === undefined),
+    );
+    if (rowParserIssues.length > 0) {
+      rows.push({
+        rowNumber,
+        raw,
+        status: "invalid",
+        issues: rowParserIssues.map((issue) => ({ ...issue, rowNumber })),
+      });
+      return;
+    }
 
     if (globalIssues.some((issue) => issue.code === "MISSING_HEADER" || issue.code === "DUPLICATE_HEADERS")) {
       rowIssues.push({
