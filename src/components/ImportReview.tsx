@@ -483,7 +483,7 @@ export default function ImportReview() {
                   <div>
                     <strong>Fetch validated market quotes</strong>
                     <p>
-                      Requires server-side <code>UPSTOX_ANALYTICS_TOKEN</code> and <code>SMARTFOLIO_ACCESS_KEY</code>. The access key below is held in memory only; never enter the Upstox token here.
+                      Requires server-side <code>SMARTFOLIO_ACCESS_KEY</code>. Equity/ETF quotes also require <code>UPSTOX_ANALYTICS_TOKEN</code>; mutual-fund NAVs use AMFI. The access key below is held in memory only; never enter the Upstox token here.
                     </p>
                   </div>
                   <label htmlFor="smartfolio-access-key">Smartfolio access key
