@@ -9,9 +9,9 @@
 
 ## Current status
 
-**Current phase/task:** Phase 5, Task 5.4 — Secure quote endpoint and live-data wiring  
+**Current phase/task:** Quality verification — validate protected quote endpoint and UI wiring  
 **Overall status:** The app now includes browser-side CSV preview, local P&L calculation preview, a public instrument-master resolver endpoint, and row-level instrument-resolution UI. The quote/NAV adapters are implemented and tested, but live quotes are not yet connected to the UI; the next step is to add a protected quote endpoint and cache.  
-**Last verified code checks:** GitHub Actions run [40817011727](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40817011727) succeeded on the latest implementation code: clean `npm ci`, ESLint, 77 unit tests across 11 files, and production build all passed.  
+**Last fully green code checks:** GitHub Actions run [40817011727](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40817011727) passed clean `npm ci`, ESLint, 77 unit tests across 11 files, and production build before quote endpoint wiring. The first run for quote endpoint wiring passed lint and 79 tests but failed test collection because the route's relative imports were one directory too high; those imports were corrected and a rerun is pending.  
 **Lockfile:** `package-lock.json` is committed. The quality workflow uses `npm ci` when the lockfile exists. Documentation-only commits no longer trigger redundant CI runs.  
 **Current market-data state:** Provider adapters have fixture-based tests, but no live quote/NAV request is connected to the browser UI. No provider token has been configured in the deployment environment.
 
@@ -80,7 +80,8 @@
 | 2026-10-29 | Generic CSV and instrument resolver | Added row-preserving parser and exact resolution states | Unit tests passed in CI |
 | 2026-10-29 | Market-data adapters | Added Upstox quote adapter, AMFI NAV parser/resolver, and Upstox instrument-master loader with fixtures | Latest run [40816690406](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40816690406) passed clean npm ci, lint, 77 tests, and build; no live market request used |
 | 2026-10-29 | P&L preview UI | Connected accepted rows to local P&L preview and incomplete-data messaging | Run 40816223371 passed clean npm ci, lint, tests, and build |
-| 2026-10-29 | Instrument resolution flow | Added bounded public master lookup endpoint and UI resolution flow for ISIN/symbol references | Latest run [40817011727](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40817011727) passed clean npm ci, lint, 77 tests, and build |
+| 2026-10-29 | Instrument resolution flow | Added bounded public master lookup endpoint and UI resolution flow for ISIN/symbol references | Run [40817011727](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40817011727) passed clean npm ci, lint, 77 tests, and build |
+| 2026-10-29 | Protected quote endpoint | Added access-key-gated quote route, bounded batches, per-instance rate limiting/cache, quote provenance UI, and route guard tests | Run 40817484850 passed lint and 79 unit tests but failed test collection on incorrect relative import; fixed in 7796a67, rerun pending |
 
 ## Per-task update template
 
