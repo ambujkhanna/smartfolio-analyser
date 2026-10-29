@@ -9,9 +9,9 @@
 
 ## Current status
 
-**Current phase/task:** Broker import hardening — verify the Zerodha Tradebook date adapter and import preview changes in CI, then implement holdings reconciliation. XLS/XLSX and PDF remain future parser tasks.  
+**Current phase/task:** Zerodha read-only connector scaffold — run CI, resolve any issues, then configure the Personal app callback and validate real account data. Holdings reconciliation and import hardening remain pending. XLS/XLSX and PDF remain future parser tasks.  
 **Overall status:** The app includes browser-side CSV preview, local FIFO/P&L calculation, instrument resolution, a protected quote endpoint, quote provenance UI, and a browser action that requests quotes and recalculates open-position valuations. The endpoint supports Upstox equity/ETF quotes and AMFI mutual-fund NAVs. Live provider calls remain unverified until server secrets are configured and a real authenticated response is tested.  
-**Last verified code checks:** GitHub Actions run [40826588884](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40826588884) passed on 29 October 2026 for delimited TXT support at SHA `0b3f1ff4a7d0fe51eb6c3a60174e67a07ce14050`. New Zerodha adapter and UI changes are awaiting a final CI result; do not treat them as verified yet. Live provider calls remain unverified.  
+**Last verified code checks:** The latest previously confirmed quality run is [40826588884](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40826588884) on SHA `0b3f1ff4a7d0fe51eb6c3a60174e67a07ce14050`. The Zerodha connector scaffold is now committed on the feature branch; CI for the current head is pending and must pass before treating the changes as verified. Live authentication/provider calls remain unverified.  
 **Lockfile:** `package-lock.json` is committed. The quality workflow uses `npm ci` when the lockfile exists. Documentation-only commits no longer trigger redundant CI runs.  
 **Current market-data state:** The browser UI calls `/api/quotes` with the Smartfolio access key and recalculates valuations from returned quote results. The server route uses `SMARTFOLIO_ACCESS_KEY` and `UPSTOX_ANALYTICS_TOKEN`; AMFI NAV requests do not need the Upstox token. Real provider requests remain unverified because deployment secrets have not yet been configured.
 
