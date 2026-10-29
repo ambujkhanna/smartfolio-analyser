@@ -25,11 +25,6 @@ interface CachedQuote {
   result: QuoteValidation;
 }
 
-interface QuoteRequestReference {
-  reference: InstrumentReference;
-  outputInstrumentId: string;
-}
-
 const rateLimits = new Map<string, RateLimitState>();
 const quoteCache = new Map<string, CachedQuote>();
 
