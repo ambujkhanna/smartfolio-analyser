@@ -28,8 +28,6 @@ export interface InstrumentLedger {
   dividends: number;
   knownOpeningBasis: number;
   hasUnknownOpeningBasis: boolean;
-  unallocatedStandaloneFees: number;
-  unallocatedDividends: number;
   lots: LotSnapshot[];
 }
 
@@ -40,6 +38,8 @@ export interface LedgerCashFlows {
   dividends: number;
   knownOpeningBasis: number;
   hasUnknownOpeningBasis: boolean;
+  unallocatedStandaloneFees: number;
+  unallocatedDividends: number;
 }
 
 export interface LedgerResult {
