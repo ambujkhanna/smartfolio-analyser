@@ -70,13 +70,11 @@ export function valueOpenPosition(
   }
 
   if (quoteResult.status !== "available") {
-    const reasonByStatus = {
-      unavailable: quoteResult.reason,
-      invalid: quoteResult.reason,
-      mismatched: quoteResult.reason,
-      stale: "Quote is stale; current market value and unrealized P&L are unavailable.",
-    } as const;
-    return unavailable(instrumentId, quantity, costBasis ?? null, reasonByStatus[quoteResult.status]);
+    const reason =
+      quoteResult.status === "stale"
+        ? "Quote is stale; current market value and unrealized P&L are unavailable."
+        : quoteResult.reason;
+    return unavailable(instrumentId, quantity, costBasis ?? null, reason);
   }
 
   if (quoteResult.quote.instrumentId !== instrumentId) {
