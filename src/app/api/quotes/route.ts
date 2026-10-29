@@ -22,7 +22,6 @@ const MAX_REQUESTS_PER_WINDOW = 20;
 const QUOTE_CACHE_TTL_MS = 60_000;
 const MAX_EQUITY_QUOTE_AGE_MS = 24 * 60 * 60 * 1000;
 const MAX_NAV_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const NAV_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 interface RateLimitState {
   windowStartedAt: number;
@@ -247,16 +246,6 @@ export async function POST(request: Request): Promise<Response> {
       });
       outputByIndex.set(index, { instrumentId: outputInstrumentId, result: navQuote });
 
-      const schemeKey = navQuote.status === "available" || navQuote.status === "stale"
-        ? navQuote.quote.providerInstrumentId
-        : undefined;
-      if (schemeKey && (navQuote.status === "available" || navQuote.status === "stale")) {
-        quoteCache.set(outputInstrumentId, {
-          expiresAt: nowMs + NAV_CACHE_TTL_MS,
-          providerInstrumentId: schemeKey,
-          result: navQuote,
-        });
-      }
     }
   }
 
