@@ -9,11 +9,11 @@
 
 ## Current status
 
-**Current phase/task:** Import compatibility fix — infer INR only for NSE/BSE tradebook rows that omit currency  
-**Overall status:** The app includes browser-side CSV preview, local P&L calculation preview, instrument resolution, a protected Upstox quote endpoint, quote provenance UI, and quote-to-position valuation mapping. Live equity quotes require server secrets and have not been verified against the real provider. Mutual-fund NAV parsing/resolution is implemented, but the AMFI feed loader and quote-route integration are still pending.  
-**Last fully green code checks:** GitHub Actions run [40817011727](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40817011727) passed clean `npm ci`, ESLint, 77 unit tests across 11 files, and production build before quote endpoint wiring. The first quote-endpoint run failed test collection due to route import paths; fixed. A later run passed lint and 82 tests but exposed an optional provider-key type, which was fixed. The following run passed lint and 82 tests but the build found a UI access to a non-existent `reason` field on the stale-quote variant. The UI now displays stale age and last-trade time from the actual quote metadata; a new full run is pending. A separate pure quote-to-position adapter is also implemented and tested.  
+**Current phase/task:** Quote/NAV end-to-end readiness and UI quality — market-data route and browser quote-fetch flow are wired; verify deployment configuration and improve automated UI coverage  
+**Overall status:** The app includes browser-side CSV preview, local FIFO/P&L calculation, instrument resolution, a protected quote endpoint, quote provenance UI, and a browser action that requests quotes and recalculates open-position valuations. The endpoint supports Upstox equity/ETF quotes and AMFI mutual-fund NAVs. Live provider calls remain unverified until server secrets are configured and a real authenticated response is tested.  
+**Last fully green code checks:** GitHub Actions run [40820712734](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40820712734) completed successfully on 29 October 2026 for the INR inference regression tests. It verified the branch code at SHA `1016557c104c723a18d3a120daa7c840e0a1ba5a` with clean install, lint, unit tests, and production build. The latest docs-only commit `788676701e6cc8ac8f94cc6fd78a0e114a11aa1d` came afterward; no claim is made that CI tested live provider calls.  
 **Lockfile:** `package-lock.json` is committed. The quality workflow uses `npm ci` when the lockfile exists. Documentation-only commits no longer trigger redundant CI runs.  
-**Current market-data state:** Provider adapters have fixture-based tests, but no live quote/NAV request is connected to the browser UI. No provider token has been configured in the deployment environment.
+**Current market-data state:** The browser UI calls `/api/quotes` with the Smartfolio access key and recalculates valuations from returned quote results. The server route uses `SMARTFOLIO_ACCESS_KEY` and `UPSTOX_ANALYTICS_TOKEN`; AMFI NAV requests do not need the Upstox token. Real provider requests remain unverified because deployment secrets have not yet been configured.
 
 ## Completed
 
@@ -45,14 +45,14 @@
 - [ ] **Task 6.3:** Finish quality reporting and reconciliation states; broker holdings comparison and stale-quote display need live data wiring.
 - [x] Add a trusted instrument-master parser/loader so imported ISIN/symbol references can resolve to provider keys without guessing.
 - [x] Integrate safe instrument lookup into the import flow; live master download still needs verification.
-- [ ] Connect server-side quote/NAV fetching to the UI only after caching and access controls are in place.
+- [x] Connect server-side quote/NAV fetching to the UI after adding bounded requests, caching, and access controls.
 
 ## Not yet implemented
 
 - [ ] Broker-specific CSV adapters and repeat-import idempotency based on a real sanitized broker sample.
 - [ ] Production instrument master data and symbol-change/alias coverage.
-- [ ] Protected server-side quote/NAV endpoint with cache, bounded request sizes, and access controls.
-- [ ] Live quote/NAV retrieval connected to the dashboard; the current UI deliberately does not invent prices.
+- [x] Protected server-side quote/NAV endpoint with cache, bounded request sizes, and access controls (best-effort in-memory limits; shared limits remain a production hardening item).
+- [x] Live quote/NAV retrieval connected to the import-review dashboard; live provider verification remains outstanding.
 - [ ] Broker holdings/opening-position import and quantity reconciliation.
 - [ ] Persistent portfolio storage.
 - [ ] UI component tests for import review and P&L preview.
@@ -96,4 +96,4 @@
 - **Commit / PR:**
 
 
-| 2026-10-29 | Tradebook CSV compatibility fix | Infer INR only when currency is blank/absent and exchange explicitly identifies NSE/BSE; added regression tests including no-guessing for unknown exchange | CI/deployment verification pending |
+| 2026-10-29 | Tradebook CSV compatibility fix | Infer INR only when currency is blank/absent and exchange explicitly identifies NSE/BSE; added regression tests including no-guessing for unknown exchange | GitHub Actions run [40820712734](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40820712734) passed lint, tests, and build; latest Vercel deployment was previously observed READY, but live quotes are not configured |
