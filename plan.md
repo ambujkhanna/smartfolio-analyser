@@ -178,10 +178,11 @@ This is an executable task plan. Complete one task at a time. After each task, u
 ## Phase 6 — UI and data-quality reporting
 
 ### Task 6.1 — Import review UI
-- [ ] Upload supported CSV files.
-- [ ] Show detected format, row counts, and validation errors before acceptance.
-- [ ] Explain unsupported rows and duplicate handling.
-- [ ] Keep parsing details out of presentation components.
+- [x] Upload CSV files up to a 5 MB client-side limit.
+- [x] Show row counts, accepted/rejected counts, and validation issues before acceptance.
+- [x] Explain unsupported rows and unresolved instrument identity; preserve raw cells including duplicate headers.
+- [x] Keep parsing in the importer module and UI orchestration in a client component.
+- [ ] Add automated component tests once a UI test library is selected.
 
 ### Task 6.2 — Holdings and P&L UI
 - [ ] Show realized, unrealized, and economic P&L separately with definitions.
