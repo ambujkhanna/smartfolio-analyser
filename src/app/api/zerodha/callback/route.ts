@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { saveZerodhaSession } from "../../../../lib/zerodhaSession";
 
@@ -14,11 +15,15 @@ function safeEqual(left: string, right: string): boolean {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
+  const returnedState = url.searchParams.get("state");
+  const jar = await cookies();
+  const expectedState = jar.get("smartfolio_kite_oauth_state")?.value;
+  jar.set("smartfolio_kite_oauth_state", "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/zerodha/callback", maxAge: 0 });
   const requestToken = url.searchParams.get("request_token");
   const apiKey = process.env.KITE_API_KEY;
   const apiSecret = process.env.KITE_API_SECRET;
 
-  if (status !== "success" || !requestToken || !apiKey || !apiSecret) {
+  if (status !== "success" || !requestToken || !apiKey || !apiSecret || !returnedState || !expectedState || !safeEqual(returnedState, expectedState)) {
     return NextResponse.redirect(new URL("/?zerodha=connection-failed", url.origin));
   }
 
