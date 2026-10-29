@@ -15,6 +15,8 @@ export interface CsvPreviewRow {
   rawValues: string[];
   status: "valid" | "invalid" | "needs-resolution";
   transaction?: CanonicalTransaction;
+  /** Validated fields with a provisional symbol identity; never used before resolution. */
+  candidateTransaction?: CanonicalTransaction;
   issues: CsvImportIssue[];
 }
 
@@ -205,7 +207,9 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
     const candidate: Record<string, unknown> = {
       transactionId: transactionId || deterministicId(fileName, rowNumber, raw),
       kind,
-      instrumentId: explicitInstrumentId || undefined,
+      instrumentId:
+        explicitInstrumentId ||
+        (needsResolution && displaySymbol ? "SYMBOL:" + displaySymbol.trim().toUpperCase() : undefined),
       occurredAt: date,
       currency,
       source: { fileName, rowNumber },
@@ -230,7 +234,16 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
 
     if (rowIssues.length > 0) {
       const status = needsResolution ? "needs-resolution" : "invalid";
-      rows.push({ rowNumber, raw, rawValues: values, status, issues: rowIssues });
+      rows.push({
+        rowNumber,
+        raw,
+        rawValues: values,
+        status,
+        ...(needsResolution && validation.status === "valid"
+          ? { candidateTransaction: validation.transaction }
+          : {}),
+        issues: rowIssues,
+      });
       return;
     }
 
