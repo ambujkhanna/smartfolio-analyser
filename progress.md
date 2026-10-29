@@ -9,9 +9,9 @@
 
 ## Current status
 
-**Current phase/task:** Phase 6, Task 6.3 — Finish data-quality reporting  
+**Current phase/task:** Phase 6, Task 6.3 — Finish data-quality reporting and safe instrument lookup  
 **Overall status:** The application shell, browser-side CSV preview, local P&L calculation preview, quote/transaction validation, FIFO ledger, instrument resolver, Upstox adapter, and AMFI NAV parser/resolver are implemented. The app still does not fetch live quotes in the UI or persist imported portfolios.  
-**Last verified code checks:** GitHub Actions run [40816223371](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40816223371) succeeded on the implementation branch: clean `npm ci`, ESLint, 70 unit tests across 10 files, and production build all passed.  
+**Last verified code checks:** GitHub Actions run [40816690406](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40816690406) succeeded on the latest implementation code: clean `npm ci`, ESLint, 77 unit tests across 11 files, and production build all passed.  
 **Lockfile:** `package-lock.json` is committed. The quality workflow uses `npm ci` when the lockfile exists. Documentation-only commits no longer trigger redundant CI runs.  
 **Current market-data state:** Provider adapters have fixture-based tests, but no live quote/NAV request is connected to the browser UI. No provider token has been configured in the deployment environment.
 
@@ -29,18 +29,20 @@
 - [x] **Task 2.3:** Added realized/unrealized/economic P&L, market value, position break-even, lifecycle recovery, and completeness metadata.
 - [x] **Task 3.1:** Added generic CSV parser with PapaParse, raw row preservation, row-level issues, duplicate-header handling, deterministic generated IDs, and unresolved symbol-only rows.
 - [x] **Task 4.1/4.2:** Added canonical instrument model and deterministic resolver with confidence states; ambiguous NSE/BSE and ISIN matches remain unresolved.
+- [x] **Task 4.3 (parser/loader):** Added official Upstox JSON BOD instrument-master parser/loader, exchange-specific provider keys, duplicate/incomplete-row warnings, and a best-effort six-hour in-memory cache. Network behavior is tested with a fixture fetcher; the live master was not downloaded during CI.
 - [x] **Task 5.1:** Reviewed official Upstox and AMFI documentation and recorded the free-first source decision in docs/MARKET_DATA_PROVIDER_REVIEW.md.
 - [x] **Task 5.2 (adapter code):** Added Upstox Market Quote V3 adapter with server-supplied credentials, 500-key batches, exact provider-key matching, timestamps, and unavailable/error states.
 - [x] **Task 5.3 (parser/resolver code):** Added AMFI NAV parsing for current 8-column data and legacy fixtures, exact scheme resolution, NAV date provenance, and validation.
 - [x] **Task 6.1:** Added browser-side CSV preview with a 5 MB limit, accepted/rejected counts, raw row details, and issue reporting.
 - [x] **Task 6.2 (initial implementation):** Added local calculation preview from accepted rows, including realized/unrealized/economic P&L, market value, remaining cost basis, position break-even, lifecycle recovery, and incomplete-data warnings.
 - [x] Updated README.md to describe the actual implementation and current limitations.
-- [x] **Quality verification:** Clean npm install via committed lockfile, lint, 70 tests, and production build passed in GitHub Actions.
+- [x] **Quality verification:** Clean npm install via committed lockfile, lint, 77 tests across 11 files, and production build passed in GitHub Actions.
 
 ## In progress
 
 - [ ] **Task 6.3:** Finish quality reporting and reconciliation states; broker holdings comparison and stale-quote display need live data wiring.
-- [ ] Add a trusted instrument-master loader so imported ISIN/symbol references can resolve to provider keys without guessing.
+- [x] Add a trusted instrument-master parser/loader so imported ISIN/symbol references can resolve to provider keys without guessing.
+- [ ] Integrate safe instrument lookup into the import flow; live master download still needs verification.
 - [ ] Connect server-side quote/NAV fetching to the UI only after caching and access controls are in place.
 
 ## Not yet implemented
@@ -74,7 +76,7 @@
 | 2026-10-29 | App shell and import preview | Added truthful landing page and browser CSV preview | Build and lint pass in CI |
 | 2026-10-29 | Domain/ledger/P&L foundation | Added quote and transaction validation, FIFO ledger, P&L/recovery calculations | Unit tests passed in CI |
 | 2026-10-29 | Generic CSV and instrument resolver | Added row-preserving parser and exact resolution states | Unit tests passed in CI |
-| 2026-10-29 | Market-data adapters | Added Upstox quote adapter and AMFI NAV parser/resolver with fixtures | Unit tests passed; no live credentials/request used |
+| 2026-10-29 | Market-data adapters | Added Upstox quote adapter, AMFI NAV parser/resolver, and Upstox instrument-master loader with fixtures | Latest run [40816690406](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40816690406) passed clean npm ci, lint, 77 tests, and build; no live market request used |
 | 2026-10-29 | P&L preview UI | Connected accepted rows to local P&L preview and incomplete-data messaging | Latest run [40816223371](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40816223371) passed clean npm ci, lint, tests, and production build |
 
 ## Per-task update template
