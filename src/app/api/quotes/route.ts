@@ -1,4 +1,12 @@
-import { resolveInstrument, type AssetType, type Exchange, type InstrumentReference } from "../../../domain/instrument";
+import {
+  resolveInstrument,
+  type AssetType,
+  type Exchange,
+  type InstrumentRecord,
+  type InstrumentReference,
+} from "../../../domain/instrument";
+import { loadAmfiNavFeed } from "../../../market-data/amfiNavFeed";
+import { getAmfiNavQuote } from "../../../market-data/amfiNav";
 import { loadUpstoxInstrumentMaster } from "../../../market-data/upstoxInstrumentMaster";
 import { isValidAccessKey } from "../../../market-data/accessControl";
 import { fetchUpstoxQuotes } from "../../../market-data/upstox";
@@ -12,7 +20,9 @@ const MAX_QUOTES = 50;
 const RATE_WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 20;
 const QUOTE_CACHE_TTL_MS = 60_000;
-const MAX_QUOTE_AGE_MS = 24 * 60 * 60 * 1000;
+const MAX_EQUITY_QUOTE_AGE_MS = 24 * 60 * 60 * 1000;
+const MAX_NAV_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const NAV_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 interface RateLimitState {
   windowStartedAt: number;
@@ -23,6 +33,12 @@ interface CachedQuote {
   expiresAt: number;
   providerInstrumentId: string;
   result: QuoteValidation;
+}
+
+interface ResolvedEquityEntry {
+  index: number;
+  reference: InstrumentReference;
+  instrument: InstrumentRecord;
 }
 
 const rateLimits = new Map<string, RateLimitState>();
@@ -44,13 +60,15 @@ function parseReference(value: unknown): InstrumentReference | null {
 
   const instrumentId = readString("instrumentId", 128);
   const isin = readString("isin", 32);
-  const symbol = readString("symbol", 64);
+  const amfiSchemeCode = readString("amfiSchemeCode", 32);
+  const symbol = readString("symbol", 128);
   const exchangeText = readString("exchange", 16)?.toUpperCase();
   const assetTypeText = readString("assetType", 24)?.toLowerCase();
 
   if (
     (value.instrumentId !== undefined && value.instrumentId !== null && value.instrumentId !== "" && !instrumentId) ||
     (value.isin !== undefined && value.isin !== null && value.isin !== "" && !isin) ||
+    (value.amfiSchemeCode !== undefined && value.amfiSchemeCode !== null && value.amfiSchemeCode !== "" && !amfiSchemeCode) ||
     (value.symbol !== undefined && value.symbol !== null && value.symbol !== "" && !symbol)
   ) {
     return null;
@@ -61,11 +79,12 @@ function parseReference(value: unknown): InstrumentReference | null {
 
   const allowedAssetTypes: AssetType[] = ["equity", "etf", "mutual-fund", "other"];
   if (assetTypeText && !allowedAssetTypes.includes(assetTypeText as AssetType)) return null;
-  if (!instrumentId && !isin && !symbol) return null;
+  if (!instrumentId && !isin && !amfiSchemeCode && !symbol) return null;
 
   return {
     ...(instrumentId ? { instrumentId } : {}),
     ...(isin ? { isin } : {}),
+    ...(amfiSchemeCode ? { amfiSchemeCode } : {}),
     ...(symbol ? { symbol } : {}),
     ...(exchangeText ? { exchange: exchangeText as Exchange } : {}),
     ...(assetTypeText ? { assetType: assetTypeText as AssetType } : {}),
@@ -94,17 +113,45 @@ function allowRequest(key: string, nowMs: number): boolean {
   return true;
 }
 
-function quoteOutputId(reference: InstrumentReference, resolved: { instrumentId: string; isin?: string }): string {
+function quoteOutputId(reference: InstrumentReference, resolved?: InstrumentRecord): string {
   const requestedId = reference.instrumentId?.trim();
   if (requestedId && !requestedId.startsWith("SYMBOL:")) return requestedId;
-  return reference.isin?.trim() || resolved.isin?.trim() || resolved.instrumentId;
+  return reference.isin?.trim()
+    || reference.amfiSchemeCode?.trim()
+    || resolved?.isin?.trim()
+    || resolved?.instrumentId
+    || reference.symbol?.trim()
+    || "unknown";
+}
+
+function isMutualFundReference(reference: InstrumentReference): boolean {
+  return reference.assetType === "mutual-fund" || Boolean(reference.amfiSchemeCode);
+}
+
+function makeAmfiInstrument(reference: InstrumentReference, outputInstrumentId: string): InstrumentRecord {
+  const schemeCode =
+    reference.amfiSchemeCode?.trim()
+    || (/^\d+$/.test(reference.instrumentId ?? "") ? reference.instrumentId : undefined);
+  const isin =
+    reference.isin?.trim()
+    || (/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(reference.instrumentId ?? "") ? reference.instrumentId : undefined);
+
+  return {
+    instrumentId: outputInstrumentId,
+    displayName: reference.symbol ?? reference.instrumentId ?? schemeCode ?? isin ?? "Mutual fund scheme",
+    assetType: "mutual-fund",
+    currency: "INR",
+    ...(isin ? { isin } : {}),
+    ...(schemeCode ? { amfiSchemeCode: schemeCode } : {}),
+    exchange: "AMFI",
+  };
 }
 
 /**
- * Authenticated quote endpoint. The Upstox token never leaves the server.
- * It only queries instruments resolved against the trusted public master.
- * Per-instance rate limits/cache are best-effort; deployments with broader
- * exposure should also enable hosting-level access protection.
+ * Authenticated quote/NAV endpoint. Provider credentials never leave the server.
+ * Only references resolved against public instrument masters are queried.
+ * The per-instance rate limit/cache is best-effort; broader public deployments
+ * should also enable hosting-level protection or shared rate limiting.
  */
 export async function POST(request: Request): Promise<Response> {
   const nowMs = Date.now();
@@ -129,8 +176,9 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const suppliedKey = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!isValidAccessKey(suppliedKey, accessKey)) {
+  const authorization = request.headers.get("authorization") ?? "";
+  const authorizationMatch = authorization.match(/^Bearer\s+(.+)$/i);
+  if (!isValidAccessKey(authorizationMatch?.[1], accessKey)) {
     return Response.json(
       { error: "Quote access denied. Check the Smartfolio access key." },
       { status: 401, headers: { "Cache-Control": "no-store" } },
@@ -166,117 +214,163 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: `A maximum of ${MAX_QUOTES} instrument references is allowed per request.` }, { status: 400 });
   }
 
-  const references = body.references.map(parseReference);
-  if (references.some((reference) => reference === null)) {
+  const parsedReferences = body.references.map(parseReference);
+  if (parsedReferences.some((reference) => reference === null)) {
     return Response.json(
-      { error: "Each reference must include a valid instrument ID, ISIN, or symbol and use supported exchange/asset-type values." },
+      { error: "Each reference must include a valid instrument ID, ISIN, scheme code, or symbol and use supported exchange/asset-type values." },
       { status: 400 },
     );
   }
 
-  const master = await loadUpstoxInstrumentMaster();
-  if (master.status === "unavailable") {
-    return Response.json({ error: master.reason }, { status: 503, headers: { "Cache-Control": "no-store" } });
-  }
-
+  const references = parsedReferences as InstrumentReference[];
   const outputByIndex = new Map<number, { instrumentId: string; result: QuoteValidation }>();
-  const resolvedGroups = new Map<
-    string,
-    Array<{ index: number; reference: InstrumentReference; instrument: import("../../../domain/instrument").InstrumentRecord }>
-  >();
+  const mutualFundIndexes = references
+    .map((reference, index) => ({ reference, index }))
+    .filter(({ reference }) => isMutualFundReference(reference));
 
-  (references as InstrumentReference[]).forEach((reference, index) => {
-    const resolution = resolveInstrument(reference, master.result.instruments);
-    if (resolution.status !== "resolved") {
-      const fallbackId = reference.instrumentId?.startsWith("SYMBOL:")
-        ? reference.symbol ?? reference.instrumentId
-        : reference.instrumentId ?? reference.isin ?? reference.symbol ?? "unknown";
-      outputByIndex.set(index, {
-        instrumentId: fallbackId,
-        result: { status: "unavailable", reason: resolution.reason },
-      });
-      return;
-    }
-
-    const outputInstrumentId = quoteOutputId(reference, resolution.instrument);
-    const group = resolvedGroups.get(outputInstrumentId) ?? [];
-    group.push({ index, reference, instrument: resolution.instrument });
-    resolvedGroups.set(outputInstrumentId, group);
-  });
-
-  const requests: Array<{
-    outputInstrumentId: string;
-    providerInstrumentId: string;
-    instrument: import("../../../domain/instrument").InstrumentRecord;
-    indices: number[];
-  }> = [];
-
-  for (const [outputInstrumentId, group] of resolvedGroups) {
-    const providerIds = new Set(
-      group
-        .map((entry) => entry.instrument.providerInstrumentId)
-        .filter((value): value is string => Boolean(value)),
-    );
-    const missingProviderKey = group.some((entry) => !entry.instrument.providerInstrumentId);
-    if (providerIds.size !== 1 || missingProviderKey) {
-      const reason = providerIds.size > 1
-        ? "Multiple exchange listings map to the same position. Resolve one quote venue before requesting market data."
-        : "The resolved instrument has no verified provider key.";
-      for (const entry of group) {
-        outputByIndex.set(entry.index, {
+  if (mutualFundIndexes.length > 0) {
+    const navFeed = await loadAmfiNavFeed();
+    for (const { reference, index } of mutualFundIndexes) {
+      const outputInstrumentId = quoteOutputId(reference);
+      if (navFeed.status === "unavailable") {
+        outputByIndex.set(index, {
           instrumentId: outputInstrumentId,
-          result: { status: "unavailable", reason },
+          result: { status: "unavailable", reason: navFeed.reason },
+        });
+        continue;
+      }
+
+      const instrument = makeAmfiInstrument(reference, outputInstrumentId);
+      const navQuote = getAmfiNavQuote(instrument, navFeed.result.records, {
+        nowMs,
+        maxAgeMs: MAX_NAV_AGE_MS,
+      });
+      outputByIndex.set(index, { instrumentId: outputInstrumentId, result: navQuote });
+
+      const schemeKey = navQuote.status === "available" || navQuote.status === "stale"
+        ? navQuote.quote.providerInstrumentId
+        : undefined;
+      if (schemeKey && (navQuote.status === "available" || navQuote.status === "stale")) {
+        quoteCache.set(outputInstrumentId, {
+          expiresAt: nowMs + NAV_CACHE_TTL_MS,
+          providerInstrumentId: schemeKey,
+          result: navQuote,
         });
       }
-      continue;
     }
-
-    const first = group[0];
-    const providerInstrumentId = [...providerIds][0];
-    if (!first || !providerInstrumentId) continue;
-    const cached = quoteCache.get(outputInstrumentId);
-    if (
-      cached &&
-      cached.expiresAt > nowMs &&
-      cached.providerInstrumentId === providerInstrumentId
-    ) {
-      for (const entry of group) {
-        outputByIndex.set(entry.index, { instrumentId: outputInstrumentId, result: cached.result });
-      }
-      continue;
-    }
-
-    requests.push({
-      outputInstrumentId,
-      providerInstrumentId,
-      instrument: { ...first.instrument, instrumentId: outputInstrumentId },
-      indices: group.map((entry) => entry.index),
-    });
   }
 
-  if (requests.length > 0) {
-    const fetched = await fetchUpstoxQuotes(
-      requests.map((entry) => entry.instrument),
-      { token, maxAgeMs: MAX_QUOTE_AGE_MS, nowMs },
-    );
-    const resultById = new Map(fetched.map((item) => [item.instrumentId, item.result]));
+  const equityReferences = references
+    .map((reference, index) => ({ reference, index }))
+    .filter(({ reference }) => !isMutualFundReference(reference));
 
-    for (const requestEntry of requests) {
-      const result = resultById.get(requestEntry.outputInstrumentId) ?? {
-        status: "unavailable" as const,
-        reason: "No quote response was returned for this instrument.",
-      };
+  if (equityReferences.length > 0) {
+    const master = await loadUpstoxInstrumentMaster();
+    if (master.status === "unavailable") {
+      for (const { reference, index } of equityReferences) {
+        outputByIndex.set(index, {
+          instrumentId: quoteOutputId(reference),
+          result: { status: "unavailable", reason: master.reason },
+        });
+      }
+    } else {
+      const resolvedGroups = new Map<string, ResolvedEquityEntry[]>();
 
-      if (result.status === "available" || result.status === "stale") {
-        quoteCache.set(requestEntry.outputInstrumentId, {
-          expiresAt: nowMs + QUOTE_CACHE_TTL_MS,
-          providerInstrumentId: requestEntry.providerInstrumentId,
-          result,
+      for (const { reference, index } of equityReferences) {
+        const resolution = resolveInstrument(reference, master.result.instruments);
+        if (resolution.status !== "resolved") {
+          const fallbackId = reference.instrumentId?.startsWith("SYMBOL:")
+            ? reference.symbol ?? reference.instrumentId
+            : reference.instrumentId ?? reference.isin ?? reference.symbol ?? "unknown";
+          outputByIndex.set(index, {
+            instrumentId: fallbackId,
+            result: { status: "unavailable", reason: resolution.reason },
+          });
+          continue;
+        }
+
+        const outputInstrumentId = quoteOutputId(reference, resolution.instrument);
+        const group = resolvedGroups.get(outputInstrumentId) ?? [];
+        group.push({ index, reference, instrument: resolution.instrument });
+        resolvedGroups.set(outputInstrumentId, group);
+      }
+
+      const requests: Array<{
+        outputInstrumentId: string;
+        providerInstrumentId: string;
+        instrument: InstrumentRecord;
+        indices: number[];
+      }> = [];
+
+      for (const [outputInstrumentId, group] of resolvedGroups) {
+        const providerIds = new Set(
+          group
+            .map((entry) => entry.instrument.providerInstrumentId)
+            .filter((value): value is string => Boolean(value)),
+        );
+        const missingProviderKey = group.some((entry) => !entry.instrument.providerInstrumentId);
+        if (providerIds.size !== 1 || missingProviderKey) {
+          const reason = providerIds.size > 1
+            ? "Multiple exchange listings map to the same position. Resolve one quote venue before requesting market data."
+            : "The resolved instrument has no verified provider key.";
+          for (const entry of group) {
+            outputByIndex.set(entry.index, {
+              instrumentId: outputInstrumentId,
+              result: { status: "unavailable", reason },
+            });
+          }
+          continue;
+        }
+
+        const first = group[0];
+        const providerInstrumentId = [...providerIds][0];
+        if (!first || !providerInstrumentId) continue;
+
+        const cached = quoteCache.get(outputInstrumentId);
+        if (
+          cached &&
+          cached.expiresAt > nowMs &&
+          cached.providerInstrumentId === providerInstrumentId
+        ) {
+          for (const entry of group) {
+            outputByIndex.set(entry.index, { instrumentId: outputInstrumentId, result: cached.result });
+          }
+          continue;
+        }
+
+        requests.push({
+          outputInstrumentId,
+          providerInstrumentId,
+          instrument: { ...first.instrument, instrumentId: outputInstrumentId },
+          indices: group.map((entry) => entry.index),
         });
       }
 
-      for (const index of requestEntry.indices) {
-        outputByIndex.set(index, { instrumentId: requestEntry.outputInstrumentId, result });
+      if (requests.length > 0) {
+        const fetched = await fetchUpstoxQuotes(
+          requests.map((entry) => entry.instrument),
+          { token, maxAgeMs: MAX_EQUITY_QUOTE_AGE_MS, nowMs },
+        );
+        const resultById = new Map(fetched.map((item) => [item.instrumentId, item.result]));
+
+        for (const requestEntry of requests) {
+          const result = resultById.get(requestEntry.outputInstrumentId) ?? {
+            status: "unavailable" as const,
+            reason: "No quote response was returned for this instrument.",
+          };
+
+          if (result.status === "available" || result.status === "stale") {
+            quoteCache.set(requestEntry.outputInstrumentId, {
+              expiresAt: nowMs + QUOTE_CACHE_TTL_MS,
+              providerInstrumentId: requestEntry.providerInstrumentId,
+              result,
+            });
+          }
+
+          for (const index of requestEntry.indices) {
+            outputByIndex.set(index, { instrumentId: requestEntry.outputInstrumentId, result });
+          }
+        }
       }
     }
   }
@@ -289,7 +383,7 @@ export async function POST(request: Request): Promise<Response> {
     {
       quotes,
       retrievedAt: new Date(nowMs).toISOString(),
-      quoteMaxAgeMs: MAX_QUOTE_AGE_MS,
+      quoteMaxAgeMs: { equityMs: MAX_EQUITY_QUOTE_AGE_MS, navMs: MAX_NAV_AGE_MS },
     },
     { status: 200, headers: { "Cache-Control": "no-store" } },
   );
