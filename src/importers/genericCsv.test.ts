@@ -4,7 +4,9 @@ import { parseGenericCsv } from "./genericCsv";
 describe("parseGenericCsv", () => {
   it("auto-detects tab-delimited TXT exports", () => {
     const result = parseGenericCsv(
-      "transactionId\\tkind\\tISIN\\tdate\\tcurrency\\tquantity\\tprice\\nT-1\\tbuy\\tINE002A01018\\t2026-10-01\\tINR\\t10\\t125.5",
+      ["transactionId", "kind", "ISIN", "date", "currency", "quantity", "price"].join(String.fromCharCode(9)) +
+        String.fromCharCode(10) +
+        ["T-1", "buy", "INE002A01018", "2026-10-01", "INR", "10", "125.5"].join(String.fromCharCode(9)),
       "trades.txt",
     );
     expect(result.rowCount).toBe(1);
@@ -15,7 +17,7 @@ describe("parseGenericCsv", () => {
 
   it("auto-detects semicolon-delimited exports", () => {
     const result = parseGenericCsv(
-      "transactionId;kind;ISIN;date;currency;quantity;price\\nT-1;buy;INE002A01018;2026-10-01;INR;10;125.5",
+      ["transactionId;kind;ISIN;date;currency;quantity;price", "T-1;buy;INE002A01018;2026-10-01;INR;10;125.5"].join(String.fromCharCode(10)),
       "trades.csv",
     );
     expect(result.acceptedCount).toBe(1);
