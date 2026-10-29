@@ -73,4 +73,20 @@ describe("resolveInstrument", () => {
   it("keeps unknown symbols unresolved", () => {
     expect(resolveInstrument({ symbol: "NOTFOUND" }, master).status).toBe("unresolved");
   });
+
+  it("does not fall back to a symbol when an explicit ID is unknown", () => {
+    const result = resolveInstrument(
+      { instrumentId: "UNKNOWN-ID", symbol: "UNIQUE" },
+      master,
+    );
+    expect(result.status).toBe("unresolved");
+  });
+
+  it("does not ignore an explicitly supplied exchange when ISIN lookup fails", () => {
+    const result = resolveInstrument(
+      { isin: "INE002A01018", exchange: "AMFI" },
+      master,
+    );
+    expect(result.status).toBe("unresolved");
+  });
 });
