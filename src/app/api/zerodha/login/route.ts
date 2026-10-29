@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -16,8 +18,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "KITE_REDIRECT_URL must point to /api/zerodha/callback." }, { status: 500 });
   }
 
+  const state = randomBytes(24).toString("base64url");
+  const jar = await cookies();
+  jar.set("smartfolio_kite_oauth_state", state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/zerodha/callback",
+    maxAge: 600,
+  });
+
   const loginUrl = new URL("https://kite.zerodha.com/connect/login");
   loginUrl.searchParams.set("v", "3");
   loginUrl.searchParams.set("api_key", apiKey);
+  loginUrl.searchParams.set("redirect_params", new URLSearchParams({ state }).toString());
+  // Keep callbackUrl constructed here to validate the configured redirect before sending the user to Zerodha.
+  void callbackUrl;
   return NextResponse.redirect(loginUrl);
 }
