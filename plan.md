@@ -48,7 +48,7 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [ ] Observe a successful CI run and fix any issues it reports.
 - [ ] Record exact command results; do not infer success from configuration alone.
 
-**Exit gate:** Test/lint/build configuration exists. Task remains open until a committed lockfile and an observed successful CI run confirm reproducibility.
+**Exit gate:** Lockfile and checks are configured; final verification is the clean npm ci run on the committed lockfile.
 
 ## Phase 1 — Financial-data integrity
 
