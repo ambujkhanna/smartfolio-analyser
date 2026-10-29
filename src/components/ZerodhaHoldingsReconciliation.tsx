@@ -52,7 +52,7 @@ function reconcile(
 ): { rows: ReconciledHolding[]; unmatchedLedger: PnlPosition[] } {
   // Aggregate ledger positions by ISIN because the same security can appear under
   // multiple exchange-qualified instrument IDs while Zerodha holdings are grouped by ISIN.
-  const ledgerByIsin = new Map<string, { quantity: number; instrumentIds: string[] }>();
+  const ledgerByIsin = new Map<string, { quantity: number; positions: PnlPosition[] }>();
   const positionsWithoutIsin: PnlPosition[] = [];
   for (const position of positions.filter((item) => item.openQuantity > 0)) {
     const isin = isinFromInstrumentId(position.instrumentId);
@@ -60,9 +60,9 @@ function reconcile(
       positionsWithoutIsin.push(position);
       continue;
     }
-    const group = ledgerByIsin.get(isin) ?? { quantity: 0, instrumentIds: [] };
+    const group = ledgerByIsin.get(isin) ?? { quantity: 0, positions: [] };
     group.quantity += position.openQuantity;
-    group.instrumentIds.push(position.instrumentId);
+    group.positions.push(position);
     ledgerByIsin.set(isin, group);
   }
 
@@ -127,10 +127,7 @@ function reconcile(
   const unmatchedLedger = positionsWithoutIsin.concat(
     [...ledgerByIsin.entries()]
       .filter(([isin]) => !matchedIsins.has(isin))
-      .flatMap(([, ledger]) => ledger.instrumentIds.map((instrumentId) => ({
-        instrumentId,
-        openQuantity: ledger.quantity,
-      }))),
+      .flatMap(([, ledger]) => ledger.positions),
   );
   return { rows, unmatchedLedger };
 }
