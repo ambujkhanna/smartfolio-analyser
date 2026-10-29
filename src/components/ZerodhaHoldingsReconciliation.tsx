@@ -176,7 +176,7 @@ export default function ZerodhaHoldingsReconciliation({ positions }: { positions
             {retrievedAt ? <small>Broker snapshot retrieved at {new Date(retrievedAt).toLocaleString()}</small> : null}
           </div>
           <p className="import-safety-note">A mismatch can mean the imported trade history is incomplete, the import date range differs, or an instrument lacks a unique ISIN mapping. Review before using the ledger as complete.</p>
-          {result.rows.length > 0 ? (
+          {result.rows.length > 0 || result.unmatchedLedger.length > 0 ? (
             <div style={{ overflowX: "auto" }}>
               <table>
                 <thead><tr><th>Instrument</th><th>ISIN</th><th>Zerodha qty</th><th>Ledger qty</th><th>Difference</th><th>Status</th></tr></thead>
