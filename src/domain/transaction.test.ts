@@ -62,6 +62,11 @@ describe("validateTransaction", () => {
     expect(validateTransaction({ ...fee, amount: 0 }).status).toBe("invalid");
   });
 
+  it("rejects ambiguous locale dates and impossible calendar dates", () => {
+    expect(validateTransaction(transaction({ occurredAt: "01-10-2026" })).status).toBe("invalid");
+    expect(validateTransaction(transaction({ occurredAt: "2026-02-31" })).status).toBe("invalid");
+  });
+
   it("reports missing source metadata and malformed dates", () => {
     const result = validateTransaction(transaction({
       occurredAt: "not-a-date",
