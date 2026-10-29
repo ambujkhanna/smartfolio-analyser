@@ -1,7 +1,7 @@
 # Market-Data Provider Review
 
 **Review date:** 29 October 2026  
-**Decision status:** Recommended free-first sources; live integration still needs implementation and verification.
+**Decision status:** Free-first sources and adapter code implemented; live deployment credentials and authenticated end-to-end verification remain outstanding.
 
 ## Recommendation
 
@@ -37,7 +37,10 @@ Findings from official documentation checked on the review date:
 - Preserve the provider response timestamp separately from the last-trade timestamp when both are available.
 - Batch up to the documented instrument-key limit; use conservative caching and respect current provider limits.
 - Do not request account holdings or trading APIs for the first implementation; this project only needs market-data quotes.
-- Do not ship an unauthenticated public proxy that allows arbitrary callers to spend the token's rate budget. Before wiring a public endpoint, add appropriate request validation, bounded batch size, caching, and access/rate controls.
+- The server quote endpoint is gated by both `SMARTFOLIO_ACCESS_KEY` (at least 32 random characters) and `UPSTOX_ANALYTICS_TOKEN`. It requires a Bearer access key, limits each request to 50 references, applies a best-effort per-instance rate limit, and caches successful/stale quote results for 60 seconds.
+- The rate limiter and quote cache are in-memory and best-effort in serverless deployments; for broader/public use, add hosting-level access protection or a shared rate-limit/cache service.
+- The endpoint uses a conservative 24-hour last-trade age limit. Stale quotes are not used to calculate current market value or unrealized P&L.
+- These controls prevent accidental open-proxy use but still require deployment configuration and end-to-end testing with real credentials.
 
 ## Mutual funds — AMFI
 
@@ -64,11 +67,11 @@ Findings from the official NAV page checked on the review date:
 ## Cost, access, and remaining risks
 
 - Upstox documents the Analytics Token and its APIs as free; no mandatory paid market-data subscription is currently recommended.
-- A user must generate their own token in the Upstox Developer Apps page and add it to the hosting environment. Do not request the token in chat or commit it to GitHub.
-- Provider coverage and symbol-to-instrument mapping still need fixture-based validation for equities and ETFs.
+- A user must generate their own token in the Upstox Developer Apps page and add it as `UPSTOX_ANALYTICS_TOKEN` in the hosting environment. Generate a separate random `SMARTFOLIO_ACCESS_KEY` (at least 32 characters) and configure it in the same server environment. The UI prompts for this application access key; it is held in memory only and is never stored. Do not request either secret in chat or commit them to GitHub.
+- The quote adapter and instrument-master parser have fixture-based tests. Live provider coverage and symbol-to-instrument mapping still need end-to-end verification with the current downloaded master.
 - AMFI data is the chosen first NAV source, but the current file format and exact download endpoint must be confirmed while implementing the adapter.
 - Neither provider selection removes the need for stale-data handling, quote provenance, instrument identity, and missing-data states.
 
 ## Decision gate
 
-Proceed with the adapter behind interfaces and test fixtures. Do not enable live quote fetching in the deployed UI until the secret is configured securely and the route cannot be abused as an open proxy. Do not claim live data until an authenticated response has been tested and validated.
+Adapter code and a guarded quote endpoint are implemented and covered by deterministic tests. Live quotes remain unavailable until both server secrets are configured and a real authenticated response is verified. Before wider public use, replace best-effort in-memory controls with hosting-level protection and/or shared rate limiting.
