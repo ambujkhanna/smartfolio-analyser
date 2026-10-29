@@ -178,15 +178,17 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [x] Test current/legacy formats, invalid rows/dates, ambiguous ISINs, and non-MF instruments.
 - [ ] Fetch/cache the current AMFI feed server-side and verify against a captured live response.
 
-### Task 5.4 — Secure live quote/NAV wiring
-- [ ] Define the access-control model for the deployed app before exposing provider-backed endpoints.
-- [ ] Add bounded quote/NAV request APIs using verified canonical instruments only.
-- [ ] Add persistent/platform cache, rate limits, and provider-error handling.
-- [ ] Keep provider credentials server-side and disable live requests when required configuration is missing.
-- [ ] Connect quote provenance and stale/unavailable states to the P&L UI.
-- [ ] Ask the user only for the required deployment credential/access-control action if it cannot be configured through existing project permissions.
+### Task 5.4 — Secure live quote wiring
+- [x] Define the access-control model: server-side Upstox token plus a separate Smartfolio access key.
+- [x] Add a bounded quote API (maximum 50 references per request) that resolves only against the trusted instrument master.
+- [x] Add a 60-second per-instance quote cache, request-size limits, and best-effort per-IP rate limiting.
+- [x] Keep provider credentials server-side and disable live requests when required configuration is missing.
+- [x] Connect quote provenance, quote age, and stale/unavailable states to the P&L UI.
+- [x] Add tests for missing configuration, invalid access key, malformed body, and quote-to-position valuation mapping.
+- [ ] Configure the two secrets in the deployment environment and verify a real authenticated response.
+- [ ] Replace best-effort in-memory rate limits/cache with hosting-level/shared controls before broad public use.
 
-**Exit gate:** Every displayed price/NAV is traceable and validated, or the UI clearly says it is unavailable. No public open proxy backed by a provider token.
+**Exit gate:** Endpoint implementation and CI checks pass. Live market data is not considered enabled until secrets are configured and a real provider response is verified. No unauthenticated open proxy backed by a provider token.
 
 ## Phase 6 — UI and data-quality reporting
 
