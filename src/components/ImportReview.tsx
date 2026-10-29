@@ -61,6 +61,7 @@ function referenceForRow(row: CsvPreviewRow): InstrumentReference | null {
   const rawInstrumentId = transaction.instrumentId;
   const instrumentId = rawInstrumentId?.startsWith("SYMBOL:") ? undefined : rawInstrumentId;
   const isin = rawValue(row, ["isin"]);
+  const amfiSchemeCode = rawValue(row, ["amfiSchemeCode", "schemeCode", "amfiCode"]);
   const symbol = rawValue(row, ["symbol", "ticker", "tradingSymbol", "scrip", "security"]);
   const exchangeValue = rawValue(row, ["exchange", "stockExchange", "exchangeSegment"])?.toUpperCase();
   const exchange =
@@ -73,12 +74,15 @@ function referenceForRow(row: CsvPreviewRow): InstrumentReference | null {
   const assetType =
     assetValue === "equity" || assetValue === "etf" || assetValue === "mutual-fund" || assetValue === "other"
       ? assetValue
-      : undefined;
+      : amfiSchemeCode
+        ? "mutual-fund"
+        : undefined;
 
-  if (!instrumentId && !isin && !symbol) return null;
+  if (!instrumentId && !isin && !symbol && !amfiSchemeCode) return null;
   return {
     ...(instrumentId ? { instrumentId } : {}),
     ...(isin ? { isin } : {}),
+    ...(amfiSchemeCode ? { amfiSchemeCode } : {}),
     ...(symbol ? { symbol } : {}),
     ...(exchange ? { exchange } : {}),
     ...(assetType ? { assetType } : {}),
@@ -145,7 +149,7 @@ export default function ImportReview() {
       const grouped = new Map<string, { reference: InstrumentReference; rowNumbers: number[] }>();
       for (const row of result.rows) {
         const reference = referenceForRow(row);
-        if (!reference) continue;
+        if (!reference || reference.assetType === "mutual-fund" || reference.amfiSchemeCode) continue;
         const key = JSON.stringify(reference);
         const existing = grouped.get(key);
         if (existing) existing.rowNumbers.push(row.rowNumber);
@@ -340,7 +344,11 @@ export default function ImportReview() {
   }
 
   const previewRows = result?.rows.slice(0, PREVIEW_ROW_LIMIT) ?? [];
-  const resolvableRowCount = result?.rows.filter((row) => row.transaction || row.candidateTransaction).length ?? 0;
+  const resolvableRowCount = result?.rows.filter((row) => {
+    if (!row.transaction && !row.candidateTransaction) return false;
+    const reference = referenceForRow(row);
+    return Boolean(reference && reference.assetType !== "mutual-fund" && !reference.amfiSchemeCode);
+  }).length ?? 0;
   const openPositions = analysis?.pnl.instrumentMetrics.filter((item) => item.openQuantity > 0) ?? [];
   const hasMissingQuotes = openPositions.some((item) => item.marketValue === null);
   const resolvedCount = Object.values(resolutionByRow).filter((resolution) => resolution.status === "resolved").length;
