@@ -7,7 +7,7 @@ export default function HomePage() {
         <Link className="brand" href="/" aria-label="Smartfolio Analyser home">
           <span className="brand-mark" aria-hidden="true">S</span>
           <span>Smartfolio <span className="brand-muted">Analyser</span></span>
-        </a>
+        </Link>
         <span className="status-pill">
           <span className="status-dot" aria-hidden="true" />
           Foundation in progress
