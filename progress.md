@@ -9,11 +9,11 @@
 
 ## Current status
 
-**Current phase/task:** Phase 5, Task 5.1 — Evaluate market-data providers  
-**Overall status:** App shell, domain validation, FIFO ledger, P&L/recovery calculations, accounting rules, and generic CSV parsing are implemented as source code with tests. Runtime verification is still pending; no passing lint/test/build run has been confirmed.  
+**Current phase/task:** Phase 6, Task 6.2 — Connect calculation engine to portfolio P&L UI  
+**Overall status:** App shell, CSV preview, domain validation, FIFO ledger, P&L/recovery calculations, instrument resolver, and market-data adapters are implemented. GitHub Actions has passed lint, all 70 unit tests, and production build; CI generated and committed package-lock.json. A clean npm ci run using the committed lockfile is now being verified.  
 **Last verified repository state:** Branch includes `src/importers/genericCsv.ts` and tests, PapaParse dependency declaration, FIFO ledger, P&L engine, domain validators, and documentation. New source files have been committed and fetched back from GitHub.  
-**Checks actually run:** GitHub Actions runs are being triggered by pushes, but rapid commits have caused earlier runs to be cancelled. The latest complete lint/test/build result is not yet confirmed. No local npm commands have run.  
-**Lockfile:** No package-lock.json is committed.  
+**Checks actually run:** GitHub Actions run [40815771819](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40815771819) completed successfully: lint passed, 70 tests passed across 10 files, and production build passed. That run generated and committed package-lock.json at commit 1a54646. A subsequent run is required to verify clean npm ci from the committed lockfile. No local npm commands have run.  
+**Lockfile:** package-lock.json is now committed; clean-install verification is pending.  
 **Provider status:** No live quote/NAV provider has been selected or implemented. No real portfolio values are shown in the UI.
 
 ## Completed
@@ -86,7 +86,8 @@
 | 2026-10-29 | Task 5.3 — AMFI NAV parser/resolver | Added current-format parser, scheme resolution, valuation-date provenance, and tests | Source/test committed; current live feed not fetched; CI verification pending |
 | 2026-10-29 | Task 6.1 — Import preview UI | Added browser-side CSV preview, row diagnostics, raw-cell details, and file guardrails | Files committed; lint/test/build verification pending |
 | 2026-10-29 | README refresh | Updated repository README to describe current implementation and limitations accurately | README fetched after commit; full CI verification pending |
-| 2026-10-29 | CI verification attempt | Lint passed and 70 tests passed; build found TypeScript narrowing issue in stale quote branch | GitHub Actions run 40815381316; source fix committed as 38b53b2; rerun pending |
+| 2026-10-29 | CI verification attempt | Initial run found a TypeScript narrowing issue; source fix committed | GitHub Actions run 40815381316 failed at build; fix at 38b53b2 |
+| 2026-10-29 | Full quality verification | Lint passed, 70 tests passed, production build passed; CI generated package-lock.json | [Run 40815771819](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40815771819) succeeded; lockfile commit 1a54646; clean npm ci verification pending |
 
 ## Per-task update template
 
