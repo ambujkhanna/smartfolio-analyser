@@ -212,23 +212,28 @@ export async function POST(request: Request): Promise<Response> {
   }> = [];
 
   for (const [outputInstrumentId, group] of resolvedGroups) {
-    const providerIds = new Set(group.map((entry) => entry.instrument.providerInstrumentId));
-    if (providerIds.size > 1) {
+    const providerIds = new Set(
+      group
+        .map((entry) => entry.instrument.providerInstrumentId)
+        .filter((value): value is string => Boolean(value)),
+    );
+    const missingProviderKey = group.some((entry) => !entry.instrument.providerInstrumentId);
+    if (providerIds.size !== 1 || missingProviderKey) {
+      const reason = providerIds.size > 1
+        ? "Multiple exchange listings map to the same position. Resolve one quote venue before requesting market data."
+        : "The resolved instrument has no verified provider key.";
       for (const entry of group) {
         outputByIndex.set(entry.index, {
           instrumentId: outputInstrumentId,
-          result: {
-            status: "unavailable",
-            reason: "Multiple exchange listings map to the same position. Resolve one quote venue before requesting market data.",
-          },
+          result: { status: "unavailable", reason },
         });
       }
       continue;
     }
 
     const first = group[0];
-    if (!first) continue;
-    const providerInstrumentId = first.instrument.providerInstrumentId;
+    const providerInstrumentId = [...providerIds][0];
+    if (!first || !providerInstrumentId) continue;
     const cached = quoteCache.get(outputInstrumentId);
     if (
       cached &&
