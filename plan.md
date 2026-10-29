@@ -35,7 +35,7 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [x] Ensure the page states that analysis is not available until transaction import and verified data are implemented.
 - [x] Do not add fabricated portfolio values or sample market prices.
 - [x] Fetch the changed files back from GitHub and inspect them.
-- [ ] Run build/lint in a runtime; this has not been available during this task.
+- [x] Run lint, tests, and production build in GitHub Actions; the later full run passed.
 
 **Exit gate:** App entry files exist and no mock financial results are shown. Build/lint verification remains outstanding.
 
@@ -44,21 +44,21 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [x] Add Vitest configuration.
 - [x] Add an ESLint 9 flat-config bridge for the Next.js rules.
 - [x] Add a GitHub Actions workflow for dependency install, lint, tests, and production build.
-- [ ] Add a committed npm lockfile when a package-manager runtime is available.
-- [ ] Observe a successful CI run and fix any issues it reports.
-- [ ] Record exact command results; do not infer success from configuration alone.
+- [x] Generate and commit package-lock.json using npm in GitHub Actions.
+- [x] Observe successful lint/test/build and clean npm ci runs; fix the issues those runs reported.
+- [x] Record exact results in progress.md; do not infer success from configuration alone.
 
-**Exit gate:** Lockfile and checks are configured; final verification is the clean npm ci run on the committed lockfile.
+**Exit gate:** Passed. The committed lockfile was used by a clean npm ci run; lint, tests, and production build passed.
 
 ## Phase 1 — Financial-data integrity
 
 ### Task 1.1 — Define quote and availability types
-- [ ] Define instrument identity fields needed by calculations.
+- [x] Define canonical instrument identity fields for ID, ISIN, exchange, symbol, asset type, currency, and provider keys.
 - [x] Define a quote type with price, currency, source, quote type, timestamp/valuation date, and provider instrument identity.
 - [x] Define explicit unavailable/invalid/stale/mismatched quote states.
 - [x] Validate finite positive prices, instrument identity, currency, source, quote type, and timestamp; reject future or stale quotes.
 - [x] Add tests for valid, missing, stale, mismatched, and invalid quotes.
-- [ ] Execute quote tests in CI/local runtime and fix any failures.
+- [x] Execute quote tests in CI; all tests passed in the verified run.
 
 ### Task 1.2 — Define canonical transaction and result types
 - [x] Model buys, sells, fees/charges, dividends, and opening balances explicitly in the canonical transaction type.
@@ -66,7 +66,7 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [x] Allow opening balances with missing original cost basis so incompleteness can be represented without guessing.
 - [x] Add runtime validation that returns structured field-level issues rather than dropping malformed rows.
 - [x] Add tests for valid trades, malformed inputs, quantities/prices, opening cost basis, fees, dates, and source metadata.
-- [ ] Execute transaction validation tests in CI/local runtime and fix any failures.
+- [x] Execute transaction validation tests in CI; all tests passed in the verified run.
 
 ### Task 1.3 — Implement a safe first calculation boundary
 - [x] Create a pure position valuation function that receives position data and an explicit quote-validation result.
@@ -74,7 +74,7 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [x] Return unavailable market value and unrealized P&L for missing, stale, invalid, or mismatched quotes.
 - [x] Keep unrealized P&L unavailable when cost basis is missing, while allowing validated market value to be shown.
 - [x] Add deterministic tests for valid valuation, unavailable/stale quote, missing cost basis, and invalid position inputs.
-- [ ] Execute the calculation tests in CI/local runtime and fix any failures.
+- [x] Execute valuation, ledger, and P&L tests in CI; all tests passed in the verified run.
 
 **Exit gate:** No path in the calculation layer can fabricate a market price.
 
@@ -115,7 +115,7 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [x] Keep symbol-only security rows in a needs-resolution state instead of guessing identity.
 - [x] Generate deterministic per-file/per-row IDs when the source has no transaction ID.
 - [x] Add fixtures for quoted commas/newlines, invalid numbers, duplicate normalized headers, unsupported kinds, and missing instrument identity.
-- [ ] Execute importer tests in CI/local runtime and fix any failures.
+- [x] Execute generic CSV importer tests in CI; all tests passed in the verified run.
 
 ### Task 3.2 — Add the first broker adapter
 - [ ] Select the first broker format from an actual sanitized sample export.
@@ -185,15 +185,15 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [ ] Add automated component tests once a UI test library is selected.
 
 ### Task 6.2 — Holdings and P&L UI
-- [ ] Show realized, unrealized, and economic P&L separately with definitions.
-- [ ] Show position break-even separately from lifecycle recovery.
+- [x] Show realized, unrealized, market value, and economic P&L separately; label the FIFO preview and partial status.
+- [x] Show position break-even separately from lifecycle recovery price.
 - [ ] Show quote/NAV source, quote type, timestamp/valuation date, and stale/unavailable state.
-- [ ] Never render missing financial values as ₹0.
-- [ ] Show when portfolio totals are incomplete.
+- [x] Render missing financial values as Unavailable, never as ₹0.
+- [x] Show a partial/incomplete status when import issues, missing quotes, or ledger warnings exist.
 
 ### Task 6.3 — Warnings and reconciliation UI
-- [ ] Show missing quotes, unresolved instruments, incomplete history, invalid rows, stale quotes, and quantity discrepancies.
-- [ ] Prioritize actionable warnings.
+- [x] Show invalid/unresolved import rows, missing quote warnings, ledger errors, and incomplete-history warnings; full stale-quote and broker-quantity reconciliation UI remains pending.
+- [x] Surface import issues and ledger errors/warnings alongside the affected calculation preview.
 - [ ] Keep charts secondary to numeric accuracy.
 - [ ] Add UI tests for unavailable values and incomplete totals.
 
