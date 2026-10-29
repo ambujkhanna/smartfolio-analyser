@@ -9,6 +9,8 @@ export interface MarketQuote {
   quoteType: QuoteType;
   /** ISO-8601 observation time or NAV valuation date represented as ISO-8601. */
   observedAt: string;
+  /** Time this application retrieved the quote; distinct from the last-trade time. */
+  retrievedAt?: string;
   /** Identifier used by the quote provider, when available. */
   providerInstrumentId?: string;
 }
