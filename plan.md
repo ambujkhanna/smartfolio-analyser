@@ -153,10 +153,11 @@ This is an executable task plan. Complete one task at a time. After each task, u
 ## Phase 5 — Market data
 
 ### Task 5.1 — Evaluate provider options
-- [ ] Review current official docs, terms, coverage, quotas, freshness, and costs.
-- [ ] Evaluate Indian listed equity/ETF quotes separately from mutual-fund NAVs.
-- [ ] Verify deployment constraints and secret handling.
-- [ ] Recommend the free-first option with evidence; request approval before mandatory paid spend.
+- [x] Review official Upstox Analytics Token and Market Quote V3 docs, including cost, authentication, freshness fields, and batch limit.
+- [x] Review AMFI official NAV download/history notices and history-window limit.
+- [x] Document deployment constraints and server-side credential handling.
+- [x] Recommend Upstox for listed equity/ETF quotes and AMFI for mutual-fund NAVs as free-first sources.
+- [ ] Implement adapters and validate with fixtures; live verification still requires secure credential configuration.
 
 ### Task 5.2 — Implement equity/ETF quote adapter
 - [ ] Implement a provider interface and a single chosen adapter.
