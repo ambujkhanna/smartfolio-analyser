@@ -65,16 +65,31 @@ export function resolveInstrument(
     reference.assetType ? item.assetType === reference.assetType : true,
   );
 
-  const explicitId = normalize(reference.instrumentId);
+  let explicitId = normalize(reference.instrumentId);
+  let isin = normalize(reference.isin);
+  let exchange = normalizeExchange(reference.exchange);
+
   if (explicitId) {
-    const matches = candidates.filter((item) => normalize(item.instrumentId) === explicitId);
+    const matches = candidates.filter(
+      (item) =>
+        normalize(item.instrumentId) === explicitId ||
+        normalize(item.providerInstrumentId) === explicitId,
+    );
     if (matches.length === 1) return { status: "resolved", instrument: matches[0], confidence: "high", matchedBy: "instrument-id" };
     if (matches.length > 1) return { status: "ambiguous", candidates: matches, reason: "Canonical instrument ID appears more than once in the instrument master." };
-    return { status: "unresolved", reason: "The supplied canonical instrument ID was not found in the instrument master." };
+
+    const exchangeQualifiedIsin = explicitId.match(/^(NSE|BSE):([A-Z0-9]{12})$/);
+    if (exchangeQualifiedIsin) {
+      exchange = exchangeQualifiedIsin[1] as Exchange;
+      isin = exchangeQualifiedIsin[2];
+    } else if (/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(explicitId)) {
+      // The generic CSV importer may carry an ISIN in its instrumentId field.
+      isin = explicitId;
+    } else {
+      return { status: "unresolved", reason: "The supplied canonical instrument ID was not found in the instrument master." };
+    }
   }
 
-  const isin = normalize(reference.isin);
-  const exchange = normalizeExchange(reference.exchange);
   if (isin && exchange && exchange !== "UNKNOWN") {
     const matches = candidates.filter(
       (item) => normalize(item.isin) === isin && normalizeExchange(item.exchange) === exchange,
@@ -100,6 +115,7 @@ export function resolveInstrument(
     return { status: "unresolved", reason: "The supplied symbol and exchange combination was not found in the instrument master." };
   }
 
+  const symbol = normalize(reference.symbol);
   if (symbol) {
     const matches = candidates.filter((item) => normalize(item.symbol) === symbol);
     if (matches.length === 1) return { status: "resolved", instrument: matches[0], confidence: "medium", matchedBy: "unique-symbol" };
