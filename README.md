@@ -89,7 +89,7 @@ npm test
 npm run build
 ```
 
-The GitHub Actions workflow runs the same checks. The latest run passed a clean `npm ci`, lint, all 77 unit tests across 11 files, and the production build. See the latest run linked in [progress.md](progress.md).
+The GitHub Actions workflow runs the same checks. The latest run passed a clean `npm ci`, lint, all 84 unit tests, and the production build. See the latest run linked in [progress.md](progress.md).
 
 ## Generic CSV preview format
 
