@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
 import { AMFI_NAV_FEED_URL } from "../../../market-data/amfiNavFeed";
+import { UPSTOX_INSTRUMENT_MASTER_URL } from "../../../market-data/upstoxInstrumentMaster";
 
 const accessKey = "k".repeat(64);
 
@@ -57,6 +58,55 @@ describe("POST /api/quotes access controls", () => {
     expect(payload.quotes[0].result.status).toBe("available");
     expect(payload.quotes[0].result.quote?.price).toBe(123.4567);
     expect(payload.quotes[0].result.quote?.quoteType).toBe("nav");
+  });
+
+  it("returns a validated equity quote using the server-side Upstox token", async () => {
+    vi.stubEnv("SMARTFOLIO_ACCESS_KEY", accessKey);
+    vi.stubEnv("UPSTOX_ANALYTICS_TOKEN", "server-only-test-token");
+    const observedAt = new Date(Date.now() - 60_000).toISOString();
+    const masterRows = [{
+      segment: "NSE_EQ",
+      name: "Example Industries",
+      exchange: "NSE",
+      isin: "INE002A01018",
+      instrument_type: "EQ",
+      instrument_key: "NSE_EQ|INE002A01018",
+      trading_symbol: "EXAMPLE",
+      security_type: "NORMAL",
+    }];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === UPSTOX_INSTRUMENT_MASTER_URL) {
+        return new Response(JSON.stringify(masterRows), { status: 200 });
+      }
+      if (url.startsWith("https://api.upstox.com/v3/market-quote/quotes")) {
+        return new Response(JSON.stringify({
+          status: "success",
+          data: {
+            "NSE_EQ|INE002A01018": {
+              instrument_token: "NSE_EQ|INE002A01018",
+              last_price: 123.45,
+              last_trade_time: observedAt,
+              timestamp: observedAt,
+            },
+          },
+        }), { status: 200 });
+      }
+      throw new Error("Unexpected fetch URL: " + url);
+    }));
+
+    const response = await POST(request(
+      JSON.stringify({
+        references: [{ instrumentId: "INE002A01018", isin: "INE002A01018", exchange: "NSE", assetType: "equity" }],
+      }),
+      `Bearer ${accessKey}`,
+      "192.0.2.14",
+    ));
+    expect(response.status).toBe(200);
+    const payload = await response.json() as { quotes: Array<{ result: { status: string; quote?: { price: number; source: string } } }> };
+    expect(payload.quotes[0].result.status).toBe("available");
+    expect(payload.quotes[0].result.quote?.price).toBe(123.45);
+    expect(payload.quotes[0].result.quote?.source).toBe("Upstox Market Quote V3");
   });
 
   it("rejects malformed request bodies before loading the instrument master", async () => {
