@@ -14,6 +14,27 @@ describe("parseGenericCsv", () => {
     expect(result.transactions[0].source.rowNumber).toBe(2);
   });
 
+  it("infers INR for NSE/BSE tradebooks when the currency column is omitted", () => {
+    const result = parseGenericCsv(
+      "symbol,isin,trade_date,exchange,segment,series,trade_type,quantity,price,trade_id\nOFSS,INE881D01027,2025-04-01,NSE,EQ,EQ,buy,1,7689.6,402735415",
+      "tradebook-GSTO30-EQ.csv",
+    );
+    expect(result.rowCount).toBe(1);
+    expect(result.acceptedCount).toBe(1);
+    expect(result.rejectedCount).toBe(0);
+    expect(result.transactions[0].currency).toBe("INR");
+    expect(result.transactions[0].instrumentId).toBe("INE881D01027");
+  });
+
+  it("does not infer currency when the exchange is missing or unknown", () => {
+    const result = parseGenericCsv(
+      "kind,ISIN,date,quantity,price\nbuy,INE002A01018,2026-10-01,1,10",
+      "trades.csv",
+    );
+    expect(result.acceptedCount).toBe(0);
+    expect(result.issues.some((issue) => issue.field === "currency")).toBe(true);
+  });
+
   it("preserves symbol-only rows as needs-resolution instead of guessing identity", () => {
     const result = parseGenericCsv(
       "type,symbol,date,currency,qty,price\nBUY,RELIANCE,2026-10-01,INR,10,125",
