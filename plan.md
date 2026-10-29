@@ -109,11 +109,13 @@ This is an executable task plan. Complete one task at a time. After each task, u
 ## Phase 3 — Import and reconciliation
 
 ### Task 3.1 — Build a safe generic CSV pipeline
-- [ ] Parse without silently dropping rows.
-- [ ] Preserve filename, row number, raw values, and parser errors.
-- [ ] Validate dates, quantity, price, transaction type, currency, and instrument identity.
-- [ ] Detect duplicate rows and provide a deterministic import identity.
-- [ ] Add fixtures for malformed rows, delimiters, quoting, empty cells, and duplicates.
+- [x] Parse CSV records using PapaParse without silently dropping malformed/unsupported rows.
+- [x] Preserve filename, logical row number, raw values, and parser errors for preview.
+- [x] Validate dates, quantity, price, transaction type, currency, and stable instrument identity before accepting canonical transactions.
+- [x] Keep symbol-only security rows in a needs-resolution state instead of guessing identity.
+- [x] Generate deterministic per-file/per-row IDs when the source has no transaction ID.
+- [x] Add fixtures for quoted commas/newlines, invalid numbers, duplicate normalized headers, unsupported kinds, and missing instrument identity.
+- [ ] Execute importer tests in CI/local runtime and fix any failures.
 
 ### Task 3.2 — Add the first broker adapter
 - [ ] Select the first broker format from an actual sanitized sample export.
