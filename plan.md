@@ -167,10 +167,11 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [ ] Test using fixed provider-response fixtures, not live calls.
 
 ### Task 5.3 — Implement mutual-fund NAV adapter
-- [ ] Resolve schemes using stable scheme identity, including plan/option variants.
-- [ ] Treat NAV as date-based and show its valuation date.
-- [ ] Validate scheme match, NAV, currency, and freshness.
-- [ ] Keep missing/ambiguous schemes unavailable.
+- [x] Parse current 8-column AMFI NAV records with explicit Plan/Option fields and retain legacy 6-column support only for older fixtures.
+- [x] Resolve NAV by explicit AMFI scheme code or unambiguous ISIN; preserve plan/option and valuation date.
+- [x] Validate positive finite NAV, currency, and freshness using the shared quote validator.
+- [x] Add tests for current/legacy formats, invalid rows/dates, ambiguous ISINs, and non-MF instruments.
+- [ ] Wire NAV fetch/cache into a server-side application path and verify against a captured current AMFI response.
 
 **Exit gate:** Every displayed price/NAV is traceable and validated.
 
