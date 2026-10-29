@@ -1,8 +1,10 @@
+import Link from "next/link";
+
 export default function HomePage() {
   return (
     <main className="page-shell">
       <header className="site-header">
-        <a className="brand" href="/" aria-label="Smartfolio Analyser home">
+        <Link className="brand" href="/" aria-label="Smartfolio Analyser home">
           <span className="brand-mark" aria-hidden="true">S</span>
           <span>Smartfolio <span className="brand-muted">Analyser</span></span>
         </a>
