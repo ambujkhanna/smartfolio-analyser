@@ -36,6 +36,7 @@
 - [x] CSV import only emits canonical transactions for rows that pass validation and have a stable instrument identity.
 - [x] Added deterministic test files for money formatting, quote validation, transaction validation, valuation, FIFO ledger, P&L reconciliation, and generic CSV edge cases.
 - [x] Updated plan.md and progress.md after the implementation increments.
+- [x] Rewrote README.md to reflect the actual dedicated repository state, distinguish implemented code from unconnected modules, document current limitations, and link the accounting/provider plans.
 
 ## In progress
 
@@ -84,6 +85,7 @@
 | 2026-10-29 | Task 5.2 — Upstox adapter | Added quote adapter, freshness/provenance handling, and fixed-response tests | Source/test committed; live token not configured; CI verification pending |
 | 2026-10-29 | Task 5.3 — AMFI NAV parser/resolver | Added current-format parser, scheme resolution, valuation-date provenance, and tests | Source/test committed; current live feed not fetched; CI verification pending |
 | 2026-10-29 | Task 6.1 — Import preview UI | Added browser-side CSV preview, row diagnostics, raw-cell details, and file guardrails | Files committed; lint/test/build verification pending |
+| 2026-10-29 | README refresh | Updated repository README to describe current implementation and limitations accurately | README fetched after commit; full CI verification pending |
 
 ## Per-task update template
 
