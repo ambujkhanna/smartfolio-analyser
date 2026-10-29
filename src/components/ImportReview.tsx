@@ -8,6 +8,7 @@ import {
 import { validateTransaction } from "../domain/transaction";
 import { buildLedger, type LedgerResult } from "../engine/buildLedger";
 import { calculatePortfolioPnL, type PortfolioPnL } from "../engine/calculatePortfolioPnL";
+import { buildPositionValuations } from "../engine/quoteValuations";
 import { parseGenericCsv, type CsvPreviewRow, type GenericCsvImportResult } from "../importers/genericCsv";
 import { formatINR } from "../lib/formatMoney";
 import type { QuoteValidation } from "../domain/quote";
@@ -252,7 +253,7 @@ export default function ImportReview() {
   function handleCalculateAcceptedRows() {
     if (!result || result.transactions.length === 0) return;
     const ledger = buildLedger(result.transactions);
-    const pnl = calculatePortfolioPnL(ledger, quoteResults);
+    const pnl = calculatePortfolioPnL(ledger, buildPositionValuations(ledger, quoteResults));
     setAnalysis({
       ledger,
       pnl,
@@ -320,7 +321,12 @@ export default function ImportReview() {
       setQuoteResults(nextQuotes);
       setQuoteRetrievedAt(retrievedAt);
       setAnalysis((current) =>
-        current ? { ...current, pnl: calculatePortfolioPnL(current.ledger, nextQuotes) } : current,
+        current
+          ? {
+              ...current,
+              pnl: calculatePortfolioPnL(current.ledger, buildPositionValuations(current.ledger, nextQuotes)),
+            }
+          : current,
       );
     } catch (quoteFailure) {
       setQuoteError(
