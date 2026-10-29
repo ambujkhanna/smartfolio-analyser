@@ -1,6 +1,6 @@
 # Smartfolio Analyser
 
-Smartfolio Analyser is being built to help Indian investors understand portfolio performance across complete investment lifecycles—including partial sales, closed positions, and later re-entry into the same instrument. The current branch supports browser-side CSV preview and a calculation preview from accepted transaction rows; live quotes are not yet connected to the UI.
+Smartfolio Analyser is being built to help Indian investors understand portfolio performance across complete investment lifecycles—including partial sales, closed positions, and later re-entry into the same instrument. The current branch supports browser-side CSV/TXT preview, calculation preview, market-data adapter code, and an initial read-only Zerodha Kite Connect integration scaffold. Live broker authentication and provider responses remain unverified until credentials are configured.
 
 - Repository: https://github.com/ambujkhanna/smartfolio-analyser
 - Implementation branch: `feat/reliable-pnl-foundation`
@@ -39,7 +39,7 @@ The current branch contains these modules:
 - **Market-data adapters:** Upstox Market Quote V3 adapter and AMFI NAV parsing/resolution code with fixed-response test fixtures.
 - **Quality tooling:** ESLint, Vitest, and a GitHub Actions lint/test/build workflow.
 
-**Important gaps:** The calculation preview is not a complete portfolio dashboard. There is no broker-specific adapter, production instrument master, live quote endpoint/cache, configured live provider credential, persistent portfolio storage, or broker holdings reconciliation UI. The AMFI parser has not yet been verified against a captured current live feed. See [progress.md](progress.md) for the latest verified status.
+**Important gaps:** The calculation preview is not a complete portfolio dashboard. The Zerodha read-only connector scaffold provides login/callback routes and data endpoints for holdings, positions, orders, and trades. It is not yet validated against a real account; orders/trades are current-day endpoints, not full historical ledgers. Credentials must be configured in Vercel, and live quote provider credentials and broker holdings reconciliation remain outstanding. XLS/XLSX and PDF import are not implemented. The AMFI parser has not yet been verified against a captured current live feed. See [progress.md](progress.md) for the latest verified status.
 
 ## Accounting rules
 
