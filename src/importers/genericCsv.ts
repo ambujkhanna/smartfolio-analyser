@@ -190,7 +190,13 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
     const unitPrice = parseNumber(valueAt(values, headers, ["unitprice", "price", "rate", "tradeprice", "averageprice"]));
     const amountValue = valueAt(values, headers, ["amount", "netamount", "feeamount", "dividendamount"]);
     const feeAmount = valueAt(values, headers, ["charges", "fees", "brokerage"]);
-    const amount = parseNumber(amountValue ?? (kind === "fee" ? feeAmount : undefined));
+    const amount = parseNumber(
+      amountValue && amountValue.trim() !== ""
+        ? amountValue
+        : kind === "fee"
+          ? feeAmount
+          : undefined,
+    );
     const charges = parseNumber(feeAmount);
 
     const candidate: Record<string, unknown> = {
