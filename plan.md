@@ -54,10 +54,11 @@ This is an executable task plan. Complete one task at a time. After each task, u
 
 ### Task 1.1 — Define quote and availability types
 - [ ] Define instrument identity fields needed by calculations.
-- [ ] Define a quote type with price, currency, source, quote type, timestamp/valuation date, and provider instrument identity.
-- [ ] Define explicit unavailable/invalid/stale quote states.
-- [ ] Use finite positive numeric validation; reject NaN, Infinity, zero, and negative prices.
-- [ ] Add tests for valid, missing, stale, mismatched, and invalid quotes.
+- [x] Define a quote type with price, currency, source, quote type, timestamp/valuation date, and provider instrument identity.
+- [x] Define explicit unavailable/invalid/stale/mismatched quote states.
+- [x] Validate finite positive prices, instrument identity, currency, source, quote type, and timestamp; reject future or stale quotes.
+- [x] Add tests for valid, missing, stale, mismatched, and invalid quotes.
+- [ ] Execute quote tests in CI/local runtime and fix any failures.
 
 ### Task 1.2 — Define canonical transaction and result types
 - [ ] Model buys, sells, fees/charges, dividends, and opening balances explicitly where supported.
