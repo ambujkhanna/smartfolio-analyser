@@ -530,7 +530,7 @@ export default function ImportReview() {
                         quoteResult?.status === "available"
                           ? `${quoteResult.quote.source} · ${quoteResult.quote.quoteType} · ${new Date(quoteResult.quote.observedAt).toLocaleString()}`
                           : quoteResult?.status === "stale"
-                            ? "Stale: " + quoteResult.reason
+                            ? `Stale quote (${Math.round(quoteResult.ageMs / 3_600_000)}h old); last trade ${new Date(quoteResult.quote.observedAt).toLocaleString()}`
                             : quoteResult
                               ? "Unavailable: " + quoteResult.reason
                               : "Not requested";
