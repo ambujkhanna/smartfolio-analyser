@@ -44,7 +44,8 @@ function toEpochMilliseconds(value: unknown): number | null {
   }
 
   const parsed = Date.parse(trimmed);
-  return Number.isFinite(parsed) ? parsed : null;
+  if (!Number.isFinite(parsed) || !Number.isFinite(new Date(parsed).getTime())) return null;
+  return parsed;
 }
 
 function unavailable(instrumentId: string, reason: string): UpstoxQuoteResult {
@@ -165,6 +166,7 @@ export async function fetchUpstoxQuotes(
         continue;
       }
 
+      const providerTimestampMs = toEpochMilliseconds(record.timestamp);
       const quote: MarketQuote = {
         instrumentId: instrument.instrumentId,
         price: typeof record.last_price === "number" ? record.last_price : Number.NaN,
@@ -173,6 +175,7 @@ export async function fetchUpstoxQuotes(
         quoteType: "real-time",
         observedAt: new Date(tradeTime).toISOString(),
         retrievedAt,
+        ...(providerTimestampMs === null ? {} : { providerTimestamp: new Date(providerTimestampMs).toISOString() }),
         providerInstrumentId: providerKey,
       };
 
