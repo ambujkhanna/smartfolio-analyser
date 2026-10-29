@@ -57,6 +57,16 @@ describe("parseGenericCsv", () => {
     expect(result.issues.some((issue) => issue.code === "DUPLICATE_HEADERS")).toBe(true);
   });
 
+  it("rejects malformed thousands separators instead of stripping arbitrary commas", () => {
+    const result = parseGenericCsv(
+      'kind,ISIN,date,currency,quantity,price\\nbuy,INE002A01018,2026-10-01,INR,"1,2,3",10',
+      "trades.csv",
+    );
+    expect(result.rows[0].status).toBe("invalid");
+    expect(result.transactions).toHaveLength(0);
+    expect(result.issues.some((issue) => issue.field === "quantity")).toBe(true);
+  });
+
   it("reports unsupported transaction kinds without dropping the row", () => {
     const result = parseGenericCsv(
       "kind,ISIN,date,currency,quantity,price\nSPLIT,INE002A01018,2026-10-01,INR,1,10",
