@@ -113,6 +113,11 @@ function quoteOutputId(reference: InstrumentReference, resolved: { instrumentId:
  */
 export async function POST(request: Request): Promise<Response> {
   const nowMs = Date.now();
+  if (quoteCache.size > 1000) {
+    for (const [instrumentId, cached] of quoteCache) {
+      if (cached.expiresAt <= nowMs) quoteCache.delete(instrumentId);
+    }
+  }
   if (!allowRequest(clientKey(request), nowMs)) {
     return Response.json(
       { error: "Too many quote requests. Retry in a minute." },
