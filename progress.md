@@ -9,7 +9,7 @@
 
 ## Current status
 
-**Current phase/task:** Multi-format document ingestion and sample-driven broker importers — support CSV/TXT first, then XLS/XLSX and text-based PDF extraction with format-specific validation; start with Zerodha Tradebook and reconcile Holdings  
+**Current phase/task:** Delimited text import hardening — auto-detect CSV/TXT delimiters, then add XLS/XLSX and text-based PDF parsers; build the Zerodha adapter from reviewed sample data  
 **Overall status:** The app includes browser-side CSV preview, local FIFO/P&L calculation, instrument resolution, a protected quote endpoint, quote provenance UI, and a browser action that requests quotes and recalculates open-position valuations. The endpoint supports Upstox equity/ETF quotes and AMFI mutual-fund NAVs. Live provider calls remain unverified until server secrets are configured and a real authenticated response is tested.  
 **Last fully green code checks:** GitHub Actions run [40820712734](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40820712734) completed successfully on 29 October 2026 for the INR inference regression tests. It verified the branch code at SHA `1016557c104c723a18d3a120daa7c840e0a1ba5a` with clean install, lint, unit tests, and production build. The latest docs-only commit `788676701e6cc8ac8f94cc6fd78a0e114a11aa1d` came afterward; no claim is made that CI tested live provider calls.  
 **Lockfile:** `package-lock.json` is committed. The quality workflow uses `npm ci` when the lockfile exists. Documentation-only commits no longer trigger redundant CI runs.  
@@ -49,7 +49,7 @@
 
 ## Not yet implemented
 
-- [ ] Multi-format ingestion: CSV/TXT, XLS/XLSX, and text-based PDF, with per-format parsing, file size/type limits, sheet/page selection where relevant, extraction warnings, and row-level provenance. Current UI accepts CSV only; no multi-format support should be claimed until code and tests land.
+- [x] Delimited text import: CSV/TXT with delimiter auto-detection and browser-only parsing; 5 MB limit and row-level provenance. XLS/XLSX and PDF remain explicitly unsupported until dedicated parsers and tests are added.
 - [ ] Broker-specific adapters and repeat-import idempotency. **Next:** add tested file-type detection and parsing boundary, then Zerodha Tradebook adapter using the attached schema and sanitized fixtures; reconcile against Holdings. PDF scans will need OCR (not assumed available) and tax reports must not be mistaken for transaction ledgers.
 - [ ] Production instrument master data and symbol-change/alias coverage.
 - [x] Protected server-side quote/NAV endpoint with cache, bounded request sizes, and access controls (best-effort in-memory limits; shared limits remain a production hardening item).
@@ -102,3 +102,6 @@
 
 
 | 2026-10-29 | Full sample inventory review and multi-format ingestion request | Reviewed all attached CSV, XLSX, PDF and image samples; tradebook CSV has 13 fields and no charges, holdings workbook is a historical snapshot with detailed and summary sheets, MF capital-gains reports are reconciliation sources rather than complete transaction ledgers, and several P&L workbooks appear empty when read | Multi-format UI support is not implemented yet; existing upload accepts CSV only. Next task is safe parser boundary with tests and locked dependencies |
+
+
+| 2026-10-29 | Delimited TXT support | Added delimiter auto-detection for comma/tab/semicolon/pipe, TXT upload selection, binary-content guard, and clearer unsupported-format messaging | Regression tests added for tab and semicolon; CI verification pending |
