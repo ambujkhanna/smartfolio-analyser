@@ -20,6 +20,7 @@ describe("parseGenericCsv", () => {
       "trades.csv",
     );
     expect(result.rows[0].status).toBe("needs-resolution");
+    expect(result.rows[0].candidateTransaction?.instrumentId).toBe("SYMBOL:RELIANCE");
     expect(result.transactions).toHaveLength(0);
     expect(result.issues.some((issue) => issue.code === "INSTRUMENT_RESOLUTION_REQUIRED")).toBe(true);
   });
