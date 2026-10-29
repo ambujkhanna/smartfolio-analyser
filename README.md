@@ -37,7 +37,7 @@ The current branch contains these modules:
 - **Market-data adapters:** Upstox Market Quote V3 adapter and AMFI NAV parsing/resolution code with fixed-response test fixtures.
 - **Quality tooling:** ESLint, Vitest, and a GitHub Actions lint/test/build workflow.
 
-**Important gaps:** The modules are not yet fully connected into the UI; there is no broker-specific adapter, no production instrument master, no secure quote endpoint/cache, no live provider credential configured, no persistent portfolio storage, and no holdings reconciliation UI. The AMFI parser has not yet been verified against a captured current live feed. GitHub Actions has found a lint issue in an earlier commit; fixes were pushed and a successful full run is still required. See [progress.md](progress.md) for the latest verified status.
+**Important gaps:** The modules are not yet fully connected into the UI; there is no broker-specific adapter, no production instrument master, no secure quote endpoint/cache, no live provider credential configured, no persistent portfolio storage, and no holdings reconciliation UI. The AMFI parser has not yet been verified against a captured current live feed. GitHub Actions has passed lint, all 70 unit tests, and the production build on the current implementation before the lockfile was committed. The generated npm lockfile is now committed; a clean `npm ci` run is being verified. See [progress.md](progress.md) for the latest verified status.
 
 ## Accounting rules
 
@@ -87,7 +87,7 @@ npm test
 npm run build
 ```
 
-The GitHub Actions workflow runs the same checks. **A successful run has not yet been confirmed for the current implementation branch.** A committed npm lockfile is also still outstanding; do not treat dependency installation as fully reproducible until it is added.
+The GitHub Actions workflow runs the same checks. The latest completed run passed lint, all 70 tests, and the production build. CI generated and committed `package-lock.json`; a subsequent run using `npm ci` is being used to verify the lockfile path.
 
 ## Generic CSV preview format
 
