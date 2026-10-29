@@ -10,6 +10,8 @@ export interface InstrumentRecord {
   symbol?: string;
   exchange?: Exchange;
   isin?: string;
+  /** AMFI scheme code for mutual-fund NAV resolution. */
+  amfiSchemeCode?: string;
   providerInstrumentId?: string;
 }
 
