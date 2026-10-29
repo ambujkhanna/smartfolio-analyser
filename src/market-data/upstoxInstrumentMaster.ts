@@ -199,7 +199,7 @@ export async function loadUpstoxInstrumentMaster(
     response = await fetcher(UPSTOX_INSTRUMENT_MASTER_URL, {
       method: "GET",
       headers: { Accept: "application/json, application/gzip" },
-      cache: "no-store",
+      cache: "force-cache",
     });
   } catch {
     return { status: "unavailable", reason: "Unable to reach the Upstox instrument-master service." };
