@@ -28,6 +28,7 @@
 - [x] **Task 2.2:** Added FIFO ledger for buy/opening/sell/fee/dividend rows, partial sells and re-entry; duplicate IDs and oversells are reported, unknown cost basis remains unknown.
 - [x] **Task 2.3 (implementation portion):** Added portfolio P&L aggregation, economic P&L reconciliation, position break-even, and lifecycle recovery price.
 - [x] **Task 3.1 (implementation portion):** Added generic CSV parsing using PapaParse. Raw rows, row numbers, parse errors, invalid fields, unsupported transaction types, duplicate headers, and unresolved symbol-only instruments remain visible.
+- [x] **Task 6.1 (implementation portion):** Added browser-side CSV preview UI with client-side file-size/type checks, row status, validation details, and explicit no-upload/no-P&L messaging.
 - [x] **Task 4.1/4.2 (initial resolver):** Added stable instrument record/reference types and exact resolver states. Explicit IDs and exchange-qualified matches take precedence; ambiguous NSE/BSE matches remain unresolved; no fuzzy matching or unsafe fallback.
 - [x] **Task 5.1:** Reviewed official Upstox Market Quote V3/Analytics Token docs and AMFI NAV download docs; added docs/MARKET_DATA_PROVIDER_REVIEW.md with a free-first recommendation and freshness/credential constraints.
 - [x] **Task 5.2 (adapter implementation):** Added Upstox Market Quote V3 adapter with server-supplied token, 500-key batching, exact provider-key matching, last-trade freshness validation, timestamp provenance, and explicit unavailable/error states.
@@ -48,7 +49,8 @@
 - [ ] Broker-specific mapping, idempotent repeat import across renamed files, opening-position import, and holdings reconciliation.
 - [ ] Instrument master/resolver, alias/symbol-change handling, and NSE/BSE quote identity.
 - [ ] Provider evaluation, equity/ETF quote adapter, mutual-fund NAV adapter, cache, and quote freshness/provenance integration.
-- [ ] Connect import/calculation modules to the UI; show import preview, holdings, P&L, and data-quality warnings.
+- [x] Connected generic CSV parsing to a browser-side import preview with a 5 MB limit, accepted/rejected counts, raw row details, and validation issues.
+- [ ] Connect calculation modules to holdings/P&L UI and add portfolio completeness/data-quality panels.
 - [ ] Security review, acceptance verification, preview deployment, and release review.
 
 ## Blockers / decisions
@@ -81,6 +83,7 @@
 | 2026-10-29 | Task 5.1 — Provider review | Reviewed official Upstox and AMFI documentation; documented free-first source split | Official docs reviewed; no live API calls made |
 | 2026-10-29 | Task 5.2 — Upstox adapter | Added quote adapter, freshness/provenance handling, and fixed-response tests | Source/test committed; live token not configured; CI verification pending |
 | 2026-10-29 | Task 5.3 — AMFI NAV parser/resolver | Added current-format parser, scheme resolution, valuation-date provenance, and tests | Source/test committed; current live feed not fetched; CI verification pending |
+| 2026-10-29 | Task 6.1 — Import preview UI | Added browser-side CSV preview, row diagnostics, raw-cell details, and file guardrails | Files committed; lint/test/build verification pending |
 
 ## Per-task update template
 
