@@ -91,6 +91,7 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
   const parsed = Papa.parse<string[]>(csvText, {
     header: false,
     dynamicTyping: false,
+    delimiter: "", // Detect comma, tab, semicolon, or pipe delimiters.
     skipEmptyLines: "greedy",
   });
 
