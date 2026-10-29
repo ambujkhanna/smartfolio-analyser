@@ -8,7 +8,7 @@ on:
       - "feat/**"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: quality-${{ github.ref }}
@@ -28,8 +28,22 @@ jobs:
         with:
           node-version: 20
 
+      - name: Check whether npm lockfile exists
+        id: lockfile
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
 
       - name: Lint
         run: npm run lint
@@ -39,3 +53,12 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Commit generated npm lockfile on implementation branch
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/feat/reliable-pnl-foundation' && steps.lockfile.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "chore: add npm lockfile"
+          git push
