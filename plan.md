@@ -143,9 +143,10 @@ This is an executable task plan. Complete one task at a time. After each task, u
 
 ### Task 4.2 — Add resolver and unresolved state
 - [ ] Evaluate permitted instrument-master sources.
-- [ ] Resolve only above a documented confidence threshold.
-- [ ] Keep ambiguous/unresolved records for user review.
-- [ ] Test aliases, duplicate symbols, renamed securities, and unknown instruments.
+- [x] Resolve exact canonical IDs and ISIN+exchange matches at high confidence; unique ISIN/symbol matches at medium confidence.
+- [x] Keep ambiguous/unresolved records for user review.
+- [x] Add tests for NSE/BSE ambiguity, explicit ID mismatch, unique symbols, and unknown instruments.
+- [ ] Test aliases and renamed securities once instrument-master data is integrated.
 
 **Exit gate:** Instruments resolve deterministically or are explicitly unresolved.
 
