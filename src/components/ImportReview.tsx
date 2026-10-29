@@ -376,7 +376,7 @@ export default function ImportReview() {
           <div className="import-summary">
             <div className="import-summary-title">
               <strong>{result.fileName}</strong>
-              <span>{result.isComplete ? "No validation issues" : "Review needed"}</span>
+              <span>{result.isComplete ? "CSV rows validated" : "Review needed"}</span>
             </div>
             <div className="import-stats">
               <div><strong>{result.rowCount}</strong><span>Data rows</span></div>
@@ -464,6 +464,37 @@ export default function ImportReview() {
                 </p>
               ) : null}
 
+              {openPositions.length > 0 ? (
+                <div className="quote-access-panel">
+                  <div>
+                    <strong>Fetch validated market quotes</strong>
+                    <p>
+                      Requires server-side <code>UPSTOX_ANALYTICS_TOKEN</code> and <code>SMARTFOLIO_ACCESS_KEY</code>. The access key below is held in memory only; never enter the Upstox token here.
+                    </p>
+                  </div>
+                  <label htmlFor="smartfolio-access-key">Smartfolio access key
+                    <input
+                      id="smartfolio-access-key"
+                      type="password"
+                      autoComplete="off"
+                      value={accessKey}
+                      onChange={(event) => setAccessKey(event.target.value)}
+                      placeholder="32+ character key configured on the server"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="secondary-action-button"
+                    onClick={handleFetchLiveQuotes}
+                    disabled={isFetchingQuotes || accessKey.trim().length < 32}
+                  >
+                    {isFetchingQuotes ? "Fetching quotes…" : "Fetch live quotes"}
+                  </button>
+                  {quoteError ? <p className="import-error" role="alert">{quoteError}</p> : null}
+                  {quoteRetrievedAt ? <small className="quote-retrieved">Quote response received at {new Date(quoteRetrievedAt).toLocaleString()}.</small> : null}
+                </div>
+              ) : null}
+
               <div className="pnl-stats">
                 <div><span>Realized P&amp;L</span><strong>{formatINR(analysis.pnl.realizedPnl)}</strong></div>
                 <div><span>Unrealized P&amp;L</span><strong>{formatINR(analysis.pnl.unrealizedPnl)}</strong></div>
@@ -478,14 +509,26 @@ export default function ImportReview() {
                       <th scope="col">Instrument ID</th>
                       <th scope="col">Open qty</th>
                       <th scope="col">Cost basis</th>
+                      <th scope="col">Current price</th>
                       <th scope="col">Market value</th>
                       <th scope="col">Unrealized P&amp;L</th>
                       <th scope="col">Position break-even</th>
                       <th scope="col">Lifecycle recovery</th>
+                      <th scope="col">Quote source / status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {analysis.pnl.instrumentMetrics.map((item) => (
+                    {analysis.pnl.instrumentMetrics.map((item) => {
+                      const quoteResult = quoteResults[item.instrumentId];
+                      const quoteDetails =
+                        quoteResult?.status === "available"
+                          ? `${quoteResult.quote.source} · ${quoteResult.quote.quoteType} · ${new Date(quoteResult.quote.observedAt).toLocaleString()}`
+                          : quoteResult?.status === "stale"
+                            ? "Stale: " + quoteResult.reason
+                            : quoteResult
+                              ? "Unavailable: " + quoteResult.reason
+                              : "Not requested";
+                      return (
                       <tr key={item.instrumentId}>
                         <td>
                           <strong>{item.instrumentId}</strong>
@@ -493,12 +536,14 @@ export default function ImportReview() {
                         </td>
                         <td>{formatQuantity(item.openQuantity)}</td>
                         <td>{formatINR(item.openCostBasisTotal)}</td>
+                        <td>{formatINR(quoteResult?.status === "available" ? quoteResult.quote.price : null)}</td>
                         <td>{formatINR(item.marketValue)}</td>
                         <td>{formatINR(item.unrealizedPnl)}</td>
                         <td>{item.positionBreakEvenPrice === null ? "Not applicable" : formatINR(item.positionBreakEvenPrice)}</td>
                         <td>{item.lifecycleRecoveryPrice === null ? "Unavailable" : formatINR(item.lifecycleRecoveryPrice)}</td>
+                        <td><small className="quote-details">{quoteDetails}</small></td>
                       </tr>
-                    ))}
+                    );})}
                   </tbody>
                 </table>
               </div>
