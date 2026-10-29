@@ -10,6 +10,7 @@ import { buildLedger, type LedgerResult } from "../engine/buildLedger";
 import { calculatePortfolioPnL, type PortfolioPnL } from "../engine/calculatePortfolioPnL";
 import { parseGenericCsv, type CsvPreviewRow, type GenericCsvImportResult } from "../importers/genericCsv";
 import { formatINR } from "../lib/formatMoney";
+import type { QuoteValidation } from "../domain/quote";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const PREVIEW_ROW_LIMIT = 50;
@@ -25,6 +26,12 @@ interface AnalysisSnapshot {
 interface ResolutionResponse {
   results?: Array<{ index: number; resolution: InstrumentResolution }>;
   masterRetrievedAt?: string;
+  error?: string;
+}
+
+interface QuoteResponse {
+  quotes?: Array<{ index: number; instrumentId: string; result: QuoteValidation }>;
+  retrievedAt?: string;
   error?: string;
 }
 
@@ -86,6 +93,11 @@ export default function ImportReview() {
   const [error, setError] = useState<string | null>(null);
   const [isReading, setIsReading] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
+  const [accessKey, setAccessKey] = useState("");
+  const [quoteResults, setQuoteResults] = useState<Record<string, QuoteValidation>>({});
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [quoteRetrievedAt, setQuoteRetrievedAt] = useState<string | null>(null);
+  const [isFetchingQuotes, setIsFetchingQuotes] = useState(false);
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -93,6 +105,9 @@ export default function ImportReview() {
     setResolutionError(null);
     setMasterRetrievedAt(null);
     setResolutionByRow({});
+    setQuoteResults({});
+    setQuoteError(null);
+    setQuoteRetrievedAt(null);
     setResult(null);
     setAnalysis(null);
     if (!file) return;
@@ -221,6 +236,8 @@ export default function ImportReview() {
         isComplete: updatedIssues.length === 0,
       });
       setAnalysis(null);
+      setQuoteResults({});
+      setQuoteRetrievedAt(null);
     } catch (resolutionFailure) {
       setResolutionError(
         resolutionFailure instanceof Error
@@ -235,13 +252,85 @@ export default function ImportReview() {
   function handleCalculateAcceptedRows() {
     if (!result || result.transactions.length === 0) return;
     const ledger = buildLedger(result.transactions);
-    const pnl = calculatePortfolioPnL(ledger, {});
+    const pnl = calculatePortfolioPnL(ledger, quoteResults);
     setAnalysis({
       ledger,
       pnl,
       importIssueCount: result.issues.length,
       sourceRowCount: result.rowCount,
     });
+  }
+
+  async function handleFetchLiveQuotes() {
+    if (!analysis || !result) return;
+    setQuoteError(null);
+
+    if (accessKey.trim().length < 32) {
+      setQuoteError("Enter the 32+ character Smartfolio access key configured in the server environment. Do not enter the Upstox token here.");
+      return;
+    }
+
+    const positions = analysis.pnl.instrumentMetrics.filter((item) => item.openQuantity > 0);
+    if (positions.length === 0) {
+      setQuoteError("There are no open positions that need a current quote.");
+      return;
+    }
+
+    const uniqueReferences = new Map<string, InstrumentReference>();
+    for (const position of positions) {
+      const matchingRow = result.rows.find(
+        (row) => row.transaction?.instrumentId === position.instrumentId,
+      );
+      const reference = matchingRow
+        ? referenceForRow(matchingRow) ?? { instrumentId: position.instrumentId }
+        : { instrumentId: position.instrumentId };
+      uniqueReferences.set(JSON.stringify(reference), reference);
+    }
+
+    const references = [...uniqueReferences.values()];
+    const nextQuotes: Record<string, QuoteValidation> = { ...quoteResults };
+    setIsFetchingQuotes(true);
+
+    try {
+      let retrievedAt: string | null = null;
+      for (let offset = 0; offset < references.length; offset += 50) {
+        const batch = references.slice(offset, offset + 50);
+        const response = await fetch("/api/quotes", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + accessKey.trim(),
+          },
+          body: JSON.stringify({ references: batch }),
+        });
+        const payload = (await response.json()) as QuoteResponse;
+        if (!response.ok) {
+          throw new Error(payload.error || "Live quote request failed.");
+        }
+        if (!Array.isArray(payload.quotes)) {
+          throw new Error("Quote service returned an unexpected response.");
+        }
+
+        retrievedAt = payload.retrievedAt ?? retrievedAt;
+        for (const item of payload.quotes) {
+          nextQuotes[item.instrumentId] = item.result;
+        }
+      }
+
+      setQuoteResults(nextQuotes);
+      setQuoteRetrievedAt(retrievedAt);
+      setAnalysis((current) =>
+        current ? { ...current, pnl: calculatePortfolioPnL(current.ledger, nextQuotes) } : current,
+      );
+    } catch (quoteFailure) {
+      setQuoteError(
+        quoteFailure instanceof Error
+          ? quoteFailure.message
+          : "Live quotes could not be fetched. Current values remain unavailable.",
+      );
+    } finally {
+      setIsFetchingQuotes(false);
+    }
   }
 
   const previewRows = result?.rows.slice(0, PREVIEW_ROW_LIMIT) ?? [];
