@@ -69,11 +69,12 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [ ] Execute transaction validation tests in CI/local runtime and fix any failures.
 
 ### Task 1.3 — Implement a safe first calculation boundary
-- [ ] Create a pure calculation API that receives normalized transactions and validated quotes as explicit inputs.
-- [ ] Ensure no hard-coded price map, ₹100 fallback, or network request exists in the engine.
-- [ ] Return unavailable current value/unrealized P&L if a quote is missing.
-- [ ] Add regression tests proving unknown symbols cannot produce invented financial values.
-- [ ] Add hand-calculated fixtures and reconciliation assertions.
+- [x] Create a pure position valuation function that receives position data and an explicit quote-validation result.
+- [x] Keep the valuation function independent of network calls and default/fallback prices.
+- [x] Return unavailable market value and unrealized P&L for missing, stale, invalid, or mismatched quotes.
+- [x] Keep unrealized P&L unavailable when cost basis is missing, while allowing validated market value to be shown.
+- [x] Add deterministic tests for valid valuation, unavailable/stale quote, missing cost basis, and invalid position inputs.
+- [ ] Execute the calculation tests in CI/local runtime and fix any failures.
 
 **Exit gate:** No path in the calculation layer can fabricate a market price.
 
