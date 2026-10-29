@@ -74,6 +74,21 @@ describe("resolveInstrument", () => {
     expect(resolveInstrument({ symbol: "NOTFOUND" }, master).status).toBe("unresolved");
   });
 
+  it("resolves a raw ISIN only when the instrument master proves it unique", () => {
+    expect(resolveInstrument({ instrumentId: "INE999A01011" }, master).status).toBe("resolved");
+    expect(resolveInstrument({ instrumentId: "INE002A01018" }, master).status).toBe("ambiguous");
+  });
+
+  it("resolves an exchange-qualified ISIN and exact provider key", () => {
+    const byExchange = resolveInstrument({ instrumentId: "NSE:INE002A01018" }, master);
+    expect(byExchange.status).toBe("resolved");
+    if (byExchange.status === "resolved") expect(byExchange.instrument.exchange).toBe("NSE");
+
+    const byProviderKey = resolveInstrument({ instrumentId: "NSE_EQ|INE002A01018" }, master);
+    expect(byProviderKey.status).toBe("resolved");
+    if (byProviderKey.status === "resolved") expect(byProviderKey.matchedBy).toBe("instrument-id");
+  });
+
   it("does not fall back to a symbol when an explicit ID is unknown", () => {
     const result = resolveInstrument(
       { instrumentId: "UNKNOWN-ID", symbol: "UNIQUE" },
