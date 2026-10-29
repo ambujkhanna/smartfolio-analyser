@@ -9,7 +9,7 @@
 
 ## Current status
 
-**Current phase/task:** Phase 3, Task 3.2 — Select and implement the first broker adapter only when a sanitized sample is available  
+**Current phase/task:** Phase 4, Task 4.1 — Create stable instrument identity model  
 **Overall status:** App shell, domain validation, FIFO ledger, P&L/recovery calculations, accounting rules, and generic CSV parsing are implemented as source code with tests. Runtime verification is still pending; no passing lint/test/build run has been confirmed.  
 **Last verified repository state:** Branch includes `src/importers/genericCsv.ts` and tests, PapaParse dependency declaration, FIFO ledger, P&L engine, domain validators, and documentation. New source files have been committed and fetched back from GitHub.  
 **Checks actually run:** GitHub Actions runs are being triggered by pushes, but rapid commits have caused earlier runs to be cancelled. The latest complete lint/test/build result is not yet confirmed. No local npm commands have run.  
@@ -34,6 +34,7 @@
 
 ## In progress
 
+- [x] **Task 3.1 (implementation portion):** Generic CSV parser and row-preserving validation added; tests written.
 - [ ] **Task 3.2:** Broker-specific adapter. This requires a sanitized representative broker export; no sample is present in the repository, so no broker format is guessed.
 - [ ] **Quality verification:** Observe a successful lint/test/build run on the latest branch head and fix failures.
 - [ ] Commit an npm lockfile from a real package-manager environment.
@@ -71,7 +72,7 @@
 | 2026-10-29 | Task 2.1 — Accounting rules | Added FIFO/lifecycle formulas and hand-calculated examples | Document committed |
 | 2026-10-29 | Task 2.2 — FIFO ledger | Added lot processing, re-entry, cash flows, and warnings/errors | Source/test files committed; tests not yet verified |
 | 2026-10-29 | Task 2.3 — P&L/recovery | Added portfolio metrics and reconciliation tests | Source/test files committed; tests not yet verified |
-| 2026-10-29 | Task 3.1 — Generic CSV | Added parser, row-preserving validation, and edge-case tests | Source/test files committed; tests not yet verified |
+| 2026-10-29 | Task 3.1 — Generic CSV | Added PapaParse pipeline, row-preserving validation, unresolved symbol state, and edge-case tests | Source/test files committed; tests not yet verified |
 
 ## Per-task update template
 
