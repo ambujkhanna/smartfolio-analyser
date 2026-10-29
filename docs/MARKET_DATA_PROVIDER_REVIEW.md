@@ -64,6 +64,24 @@ Findings from the official NAV page checked on the review date:
 - Keep ambiguous scheme matches unresolved.
 - Use the current AMFI text format and add captured, sanitized fixtures before relying on the parser.
 
+## Portfolio-data acquisition strategy (automatic-first)
+
+This is a separate concern from market quotes. The quote provider must not be treated as a source of account transactions.
+
+- **Zerodha:** Kite Connect exposes holdings and net/day positions. Standard orders and trades endpoints are current-day data, so they cannot independently reconstruct an all-time ledger. The APIs should be used automatically for the data they expose; do not claim that they supply full historical dividend or corporate-action history unless a specific supported endpoint is verified.
+- **Groww:** Groww documents APIs for holdings, positions, order/trade history and market data. Check current API access, subscription/pricing and the precise historical coverage before enabling the adapter. Do not assume its API exposes dividend or corporate-action statements.
+- **Other connected platforms:** Implement capability-based adapters rather than a single hard-coded checklist. Every provider reports which datasets it supports, their time coverage, last successful sync, and limitations.
+- **Dividends, corporate actions, charges, and tax records:** First query connected sources and reconcile their available records. If a required record is not available through an authorised API, ask for the narrowest relevant statement/export only after automatic matching has been attempted. A report category by itself is never a mandatory upload requirement.
+- **Deduplication:** Prefer provider transaction IDs. If absent, use a conservative composite of account/provider, instrument identity, transaction date/time, side/type, quantity, price, and charges. Flag ambiguous candidates for review instead of silently merging them.
+- **Coverage report:** After sync, show what was fetched, which date range each source covers, what matched, what conflicts, and which specific missing records materially affect realized/economic P&L or quantity reconciliation. Keep unaffected calculations available as partial results.
+- **No snapshot-to-transaction conversion:** Current holdings are a reconciliation reference, not a substitute for missing purchase/sale transactions. If a snapshot is used to seed an opening balance, preserve its date and basis-known/unknown status and avoid duplicating it when older trades are later imported.
+
+Official provider documentation:
+- Zerodha portfolio API: https://kite.trade/docs/connect/v3/portfolio/
+- Zerodha API FAQ and current-day authentication/data constraints: https://support.zerodha.com/category/trading-and-markets/general-kite/kite-api/articles/kite-connect-api-faqs
+- Groww Trading API overview: https://groww.in/trade-api
+- Groww API introduction/authentication: https://groww.in/trade-api/docs/curl
+
 ## Cost, access, and remaining risks
 
 - Upstox documents the Analytics Token and its APIs as free; no mandatory paid market-data subscription is currently recommended.
