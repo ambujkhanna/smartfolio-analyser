@@ -68,6 +68,7 @@ export function resolveInstrument(
     const matches = candidates.filter((item) => normalize(item.instrumentId) === explicitId);
     if (matches.length === 1) return { status: "resolved", instrument: matches[0], confidence: "high", matchedBy: "instrument-id" };
     if (matches.length > 1) return { status: "ambiguous", candidates: matches, reason: "Canonical instrument ID appears more than once in the instrument master." };
+    return { status: "unresolved", reason: "The supplied canonical instrument ID was not found in the instrument master." };
   }
 
   const isin = normalize(reference.isin);
@@ -78,6 +79,7 @@ export function resolveInstrument(
     );
     if (matches.length === 1) return { status: "resolved", instrument: matches[0], confidence: "high", matchedBy: "isin-exchange" };
     if (matches.length > 1) return { status: "ambiguous", candidates: matches, reason: "ISIN and exchange match more than one master record." };
+    return { status: "unresolved", reason: "The supplied ISIN and exchange combination was not found in the instrument master." };
   }
 
   if (isin) {
@@ -93,6 +95,7 @@ export function resolveInstrument(
     );
     if (matches.length === 1) return { status: "resolved", instrument: matches[0], confidence: "medium", matchedBy: "symbol-exchange" };
     if (matches.length > 1) return { status: "ambiguous", candidates: matches, reason: "Symbol and exchange match more than one master record." };
+    return { status: "unresolved", reason: "The supplied symbol and exchange combination was not found in the instrument master." };
   }
 
   if (symbol) {
