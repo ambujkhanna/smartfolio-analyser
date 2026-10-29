@@ -179,99 +179,110 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: master.reason }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 
-  const resolvedRequests: QuoteRequestReference[] = [];
   const outputByIndex = new Map<number, { instrumentId: string; result: QuoteValidation }>();
-  const providerByOutputId = new Map<string, string>();
+  const resolvedGroups = new Map<
+    string,
+    Array<{ index: number; reference: InstrumentReference; instrument: import("../../../../domain/instrument").InstrumentRecord }>
+  >();
 
   (references as InstrumentReference[]).forEach((reference, index) => {
     const resolution = resolveInstrument(reference, master.result.instruments);
-    const outputInstrumentId = quoteOutputId(reference, resolution.status === "resolved" ? resolution.instrument : {
-      instrumentId: reference.instrumentId ?? reference.isin ?? reference.symbol ?? "unknown",
-    });
-
     if (resolution.status !== "resolved") {
+      const fallbackId = reference.instrumentId?.startsWith("SYMBOL:")
+        ? reference.symbol ?? reference.instrumentId
+        : reference.instrumentId ?? reference.isin ?? reference.symbol ?? "unknown";
       outputByIndex.set(index, {
-        instrumentId: outputInstrumentId,
+        instrumentId: fallbackId,
         result: { status: "unavailable", reason: resolution.reason },
       });
       return;
     }
 
-    const previousProviderId = providerByOutputId.get(outputInstrumentId);
-    if (previousProviderId && previousProviderId !== resolution.instrument.providerInstrumentId) {
-      outputByIndex.set(index, {
-        instrumentId: outputInstrumentId,
-        result: {
-          status: "unavailable",
-          reason: "Multiple exchange listings map to the same position. Resolve one quote venue before requesting market data.",
-        },
-      });
-      return;
-    }
-    providerByOutputId.set(outputInstrumentId, resolution.instrument.providerInstrumentId);
+    const outputInstrumentId = quoteOutputId(reference, resolution.instrument);
+    const group = resolvedGroups.get(outputInstrumentId) ?? [];
+    group.push({ index, reference, instrument: resolution.instrument });
+    resolvedGroups.set(outputInstrumentId, group);
+  });
 
+  const requests: Array<{
+    outputInstrumentId: string;
+    providerInstrumentId: string;
+    instrument: import("../../../../domain/instrument").InstrumentRecord;
+    indices: number[];
+  }> = [];
+
+  for (const [outputInstrumentId, group] of resolvedGroups) {
+    const providerIds = new Set(group.map((entry) => entry.instrument.providerInstrumentId));
+    if (providerIds.size > 1) {
+      for (const entry of group) {
+        outputByIndex.set(entry.index, {
+          instrumentId: outputInstrumentId,
+          result: {
+            status: "unavailable",
+            reason: "Multiple exchange listings map to the same position. Resolve one quote venue before requesting market data.",
+          },
+        });
+      }
+      continue;
+    }
+
+    const first = group[0];
+    if (!first) continue;
+    const providerInstrumentId = first.instrument.providerInstrumentId;
     const cached = quoteCache.get(outputInstrumentId);
     if (
       cached &&
       cached.expiresAt > nowMs &&
-      cached.providerInstrumentId === resolution.instrument.providerInstrumentId
+      cached.providerInstrumentId === providerInstrumentId
     ) {
-      outputByIndex.set(index, { instrumentId: outputInstrumentId, result: cached.result });
-      return;
-    }
-
-    const alreadyQueued = resolvedRequests.some((item) => item.outputInstrumentId === outputInstrumentId);
-    if (!alreadyQueued) {
-      resolvedRequests.push({
-        reference,
-        outputInstrumentId,
-      });
-    }
-  });
-
-  if (resolvedRequests.length > 0) {
-    const instruments = resolvedRequests.map((entry) => {
-      const resolution = resolveInstrument(entry.reference, master.result.instruments);
-      if (resolution.status !== "resolved") {
-        throw new Error("Instrument resolution changed during quote request.");
+      for (const entry of group) {
+        outputByIndex.set(entry.index, { instrumentId: outputInstrumentId, result: cached.result });
       }
-      return { ...resolution.instrument, instrumentId: entry.outputInstrumentId };
-    });
+      continue;
+    }
 
-    const fetched = await fetchUpstoxQuotes(instruments, {
-      token,
-      maxAgeMs: MAX_QUOTE_AGE_MS,
-      nowMs,
+    requests.push({
+      outputInstrumentId,
+      providerInstrumentId,
+      instrument: { ...first.instrument, instrumentId: outputInstrumentId },
+      indices: group.map((entry) => entry.index),
     });
+  }
+
+  if (requests.length > 0) {
+    const fetched = await fetchUpstoxQuotes(
+      requests.map((entry) => entry.instrument),
+      { token, maxAgeMs: MAX_QUOTE_AGE_MS, nowMs },
+    );
     const resultById = new Map(fetched.map((item) => [item.instrumentId, item.result]));
 
-    for (const entry of resolvedRequests) {
-      const result = resultById.get(entry.outputInstrumentId) ?? {
+    for (const requestEntry of requests) {
+      const result = resultById.get(requestEntry.outputInstrumentId) ?? {
         status: "unavailable" as const,
         reason: "No quote response was returned for this instrument.",
       };
-      const resolution = resolveInstrument(entry.reference, master.result.instruments);
-      const providerInstrumentId =
-        resolution.status === "resolved" ? resolution.instrument.providerInstrumentId : "";
-      if (providerInstrumentId && (result.status === "available" || result.status === "stale")) {
-        quoteCache.set(entry.outputInstrumentId, {
+
+      if (result.status === "available" || result.status === "stale") {
+        quoteCache.set(requestEntry.outputInstrumentId, {
           expiresAt: nowMs + QUOTE_CACHE_TTL_MS,
-          providerInstrumentId,
+          providerInstrumentId: requestEntry.providerInstrumentId,
           result,
         });
       }
-      for (let index = 0; index < (references as InstrumentReference[]).length; index += 1) {
-        const reference = (references as InstrumentReference[])[index];
-        if (quoteOutputId(reference, { instrumentId: reference.instrumentId ?? reference.isin ?? reference.symbol ?? "unknown", isin: reference.isin }) === entry.outputInstrumentId) {
-          outputByIndex.set(index, { instrumentId: entry.outputInstrumentId, result });
-        }
+
+      for (const index of requestEntry.indices) {
+        outputByIndex.set(index, { instrumentId: requestEntry.outputInstrumentId, result });
       }
     }
   }
 
+  const quotes = [...outputByIndex.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([index, item]) => ({ index, ...item }));
+
   return Response.json(
     {
-      quotes: [...outputByIndex.values()],
+      quotes,
       retrievedAt: new Date(nowMs).toISOString(),
       quoteMaxAgeMs: MAX_QUOTE_AGE_MS,
     },
