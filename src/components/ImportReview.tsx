@@ -1,13 +1,19 @@
 "use client";
 
 import { useState, type ChangeEvent } from "react";
+import {
+  type InstrumentReference,
+  type InstrumentResolution,
+} from "../domain/instrument";
+import { validateTransaction } from "../domain/transaction";
 import { buildLedger, type LedgerResult } from "../engine/buildLedger";
 import { calculatePortfolioPnL, type PortfolioPnL } from "../engine/calculatePortfolioPnL";
-import { parseGenericCsv, type GenericCsvImportResult } from "../importers/genericCsv";
+import { parseGenericCsv, type CsvPreviewRow, type GenericCsvImportResult } from "../importers/genericCsv";
 import { formatINR } from "../lib/formatMoney";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const PREVIEW_ROW_LIMIT = 50;
+const RESOLUTION_BATCH_SIZE = 100;
 
 interface AnalysisSnapshot {
   ledger: LedgerResult;
@@ -16,19 +22,77 @@ interface AnalysisSnapshot {
   sourceRowCount: number;
 }
 
+interface ResolutionResponse {
+  results?: Array<{ index: number; resolution: InstrumentResolution }>;
+  masterRetrievedAt?: string;
+  error?: string;
+}
+
 function formatQuantity(value: number): string {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 4 }).format(value);
+}
+
+function normalizeHeader(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function rawValue(row: CsvPreviewRow, aliases: string[]): string | undefined {
+  const normalizedAliases = new Set(aliases.map(normalizeHeader));
+  const entry = Object.entries(row.raw).find(([header]) => normalizedizedHeader(header, normalizedAliases));
+  return entry?.[1]?.trim() || undefined;
+}
+
+function normalizedizedHeader(header: string, aliases: Set<string>): boolean {
+  return aliases.has(normalizeHeader(header));
+}
+
+function referenceForRow(row: CsvPreviewRow): InstrumentReference | null {
+  const transaction = row.transaction ?? row.candidateTransaction;
+  if (!transaction) return null;
+
+  const rawInstrumentId = transaction.instrumentId;
+  const instrumentId = rawInstrumentId?.startsWith("SYMBOL:") ? undefined : rawInstrumentId;
+  const isin = rawValue(row, ["isin"]);
+  const symbol = rawValue(row, ["symbol", "ticker", "tradingSymbol", "scrip", "security"]);
+  const exchangeValue = rawValue(row, ["exchange", "stockExchange", "exchangeSegment"])?.toUpperCase();
+  const exchange =
+    exchangeValue === "NSE" || exchangeValue === "NSE_EQ"
+      ? "NSE"
+      : exchangeValue === "BSE" || exchangeValue === "BSE_EQ"
+        ? "BSE"
+        : undefined;
+  const assetValue = rawValue(row, ["assetType", "instrumentType"])?.toLowerCase();
+  const assetType =
+    assetValue === "equity" || assetValue === "etf" || assetValue === "mutual-fund" || assetValue === "other"
+      ? assetValue
+      : undefined;
+
+  if (!instrumentId && !isin && !symbol) return null;
+  return {
+    ...(instrumentId ? { instrumentId } : {}),
+    ...(isin ? { isin } : {}),
+    ...(symbol ? { symbol } : {}),
+    ...(exchange ? { exchange } : {}),
+    ...(assetType ? { assetType } : {}),
+  };
 }
 
 export default function ImportReview() {
   const [result, setResult] = useState<GenericCsvImportResult | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisSnapshot | null>(null);
+  const [resolutionByRow, setResolutionByRow] = useState<Record<number, InstrumentResolution>>({});
+  const [resolutionError, setResolutionError] = useState<string | null>(null);
+  const [masterRetrievedAt, setMasterRetrievedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isReading, setIsReading] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     setError(null);
+    setResolutionError(null);
+    setMasterRetrievedAt(null);
+    setResolutionByRow({});
     setResult(null);
     setAnalysis(null);
     if (!file) return;
@@ -56,6 +120,118 @@ export default function ImportReview() {
     }
   }
 
+  async function handleResolveInstruments() {
+    if (!result) return;
+    setResolutionError(null);
+    setIsResolving(true);
+
+    try {
+      const grouped = new Map<string, { reference: InstrumentReference; rowNumbers: number[] }>();
+      for (const row of result.rows) {
+        const reference = referenceForRow(row);
+        if (!reference) continue;
+        const key = JSON.stringify(reference);
+        const existing = grouped.get(key);
+        if (existing) existing.rowNumbers.push(row.rowNumber);
+        else grouped.set(key, { reference, rowNumbers: [row.rowNumber] });
+      }
+
+      const uniqueReferences = [...grouped.values()];
+      if (uniqueReferences.length === 0) {
+        setResolutionError("No rows contain an instrument identifier or symbol that can be resolved.");
+        return;
+      }
+
+      const resolvedByRow: Record<number, InstrumentResolution> = {};
+      let retrievedAt: string | null = null;
+
+      for (let offset = 0; offset < uniqueReferences.length; offset += RESOLUTION_BATCH_SIZE) {
+        const batch = uniqueReferences.slice(offset, offset + RESOLUTION_BATCH_SIZE);
+        const response = await fetch("/api/instruments/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ references: batch.map((entry) => entry.reference) }),
+        });
+
+        const payload = (await response.json()) as ResolutionResponse;
+        if (!response.ok) {
+          throw new Error(payload.error || "Instrument resolution failed.");
+        }
+        if (!Array.isArray(payload.results)) {
+          throw new Error("Instrument resolver returned an unexpected response.");
+        }
+
+        retrievedAt = payload.masterRetrievedAt ?? retrievedAt;
+        for (const item of payload.results) {
+          const groupedEntry = batch[item.index];
+          if (!groupedEntry) continue;
+          for (const rowNumber of groupedEntry.rowNumbers) {
+            resolvedByRow[rowNumber] = item.resolution;
+          }
+        }
+      }
+
+      const newlyResolvedRows = new Set<number>();
+      const updatedRows = result.rows.map((row) => {
+        const resolution = resolvedByRow[row.rowNumber];
+        if (
+          row.status !== "needs-resolution" ||
+          resolution?.status !== "resolved" ||
+          !row.candidateTransaction
+        ) {
+          return row;
+        }
+
+        const resolvedId = resolution.instrument.isin || resolution.instrument.instrumentId;
+        const validation = validateTransaction({
+          ...row.candidateTransaction,
+          instrumentId: resolvedId,
+        });
+        if (validation.status !== "valid") return row;
+
+        newlyResolvedRows.add(row.rowNumber);
+        return {
+          ...row,
+          status: "valid" as const,
+          transaction: validation.transaction,
+          candidateTransaction: undefined,
+          issues: row.issues.filter((issue) => issue.code !== "INSTRUMENT_RESOLUTION_REQUIRED"),
+        };
+      });
+
+      const updatedIssues = result.issues.filter(
+        (issue) =>
+          issue.code !== "INSTRUMENT_RESOLUTION_REQUIRED" ||
+          issue.rowNumber === undefined ||
+          !newlyResolvedRows.has(issue.rowNumber),
+      );
+      const transactions = updatedRows.flatMap((row) =>
+        row.status === "valid" && row.transaction ? [row.transaction] : [],
+      );
+
+      setResolutionByRow(resolvedByRow);
+      setMasterRetrievedAt(retrievedAt);
+      setResult({
+        ...result,
+        rows: updatedRows,
+        transactions,
+        acceptedCount: transactions.length,
+        rejectedCount: updatedRows.length - transactions.length,
+        issues: updatedIssues,
+        isComplete: updatedIssues.length === 0,
+      });
+      setAnalysis(null);
+    } catch (resolutionFailure) {
+      setResolutionError(
+        resolutionFailure instanceof Error
+          ? resolutionFailure.message
+          : "Instrument resolution failed. You can still review the CSV rows.",
+      );
+    } finally {
+      setIsResolving(false);
+    }
+  }
+
   function handleCalculateAcceptedRows() {
     if (!result || result.transactions.length === 0) return;
     const ledger = buildLedger(result.transactions);
@@ -69,8 +245,12 @@ export default function ImportReview() {
   }
 
   const previewRows = result?.rows.slice(0, PREVIEW_ROW_LIMIT) ?? [];
+  const resolvableRowCount = result?.rows.filter((row) => row.transaction || row.candidateTransaction).length ?? 0;
   const openPositions = analysis?.pnl.instrumentMetrics.filter((item) => item.openQuantity > 0) ?? [];
   const hasMissingQuotes = openPositions.some((item) => item.marketValue === null);
+  const resolvedCount = Object.values(resolutionByRow).filter((resolution) => resolution.status === "resolved").length;
+  const ambiguousCount = Object.values(resolutionByRow).filter((resolution) => resolution.status === "ambiguous").length;
+  const unresolvedCount = Object.values(resolutionByRow).filter((resolution) => resolution.status === "unresolved").length;
 
   return (
     <section className="import-review" aria-labelledby="import-title">
@@ -79,7 +259,7 @@ export default function ImportReview() {
           <p className="eyebrow">Step 1 · Review your data</p>
           <h2 id="import-title">Preview a tradebook CSV</h2>
           <p className="import-description">
-            The file is parsed in your browser. Invalid rows and rows needing instrument resolution stay visible and are not passed to calculations.
+            The file is parsed in your browser. Invalid rows stay visible; rows with a symbol but no stable identity can be resolved against a trusted instrument master.
           </p>
         </div>
         <span className="file-limit">CSV · up to 5 MB</span>
@@ -89,14 +269,14 @@ export default function ImportReview() {
         <span className="file-picker-icon" aria-hidden="true">↑</span>
         <span>
           <strong>{isReading ? "Reading file…" : "Choose a CSV file"}</strong>
-          <small>Nothing is uploaded to a server in this preview step.</small>
+          <small>The file stays in your browser. If you request resolution, only instrument identifiers are sent to the server.</small>
         </span>
         <input
           id="tradebook-file"
           type="file"
           accept=".csv,text/csv"
           onChange={handleFileChange}
-          disabled={isReading}
+          disabled={isReading || isResolving}
         />
       </label>
 
@@ -115,7 +295,7 @@ export default function ImportReview() {
               <div><strong>{result.rejectedCount}</strong><span>Needs attention</span></div>
             </div>
             <p className="import-safety-note">
-              Preview only: no transactions have been saved. Analysis below uses accepted rows only and does not fetch market prices.
+              Preview only: no transactions are saved. Calculations use accepted rows only and do not fetch market prices.
             </p>
           </div>
 
@@ -123,6 +303,36 @@ export default function ImportReview() {
             <div className="issue-banner">
               <strong>{result.issues.length} issue{result.issues.length === 1 ? "" : "s"} found</strong>
               <p>Invalid or unresolved rows are excluded from calculations. Results based on the remaining rows are partial.</p>
+            </div>
+          ) : null}
+
+          {resolvableRowCount > 0 ? (
+            <div className="resolution-action">
+              <div>
+                <strong>Resolve instrument identities</strong>
+                <p>
+                  Matches identifiers against the public Upstox instrument master. Ambiguous NSE/BSE matches remain unresolved.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="secondary-action-button"
+                onClick={handleResolveInstruments}
+                disabled={isReading || isResolving}
+              >
+                {isResolving ? "Resolving…" : "Resolve instruments"}
+              </button>
+            </div>
+          ) : null}
+
+          {resolutionError ? <p className="import-error" role="alert">{resolutionError}</p> : null}
+
+          {masterRetrievedAt ? (
+            <div className="resolution-summary">
+              <span><strong>{resolvedCount}</strong> resolved</span>
+              <span><strong>{ambiguousCount}</strong> ambiguous</span>
+              <span><strong>{unresolvedCount}</strong> unresolved</span>
+              <small>Instrument master retrieved at {new Date(masterRetrievedAt).toLocaleString()}</small>
             </div>
           ) : null}
 
@@ -135,7 +345,7 @@ export default function ImportReview() {
               type="button"
               className="calculate-button"
               onClick={handleCalculateAcceptedRows}
-              disabled={isReading || result.transactions.length === 0}
+              disabled={isReading || isResolving || result.transactions.length === 0}
             >
               Calculate P&amp;L
             </button>
@@ -238,53 +448,65 @@ export default function ImportReview() {
                 <tr>
                   <th scope="col">Row</th>
                   <th scope="col">Status</th>
-                  <th scope="col">Transaction</th>
+                  <th scope="col">Transaction / resolution</th>
                   <th scope="col">Source data / issues</th>
                 </tr>
               </thead>
               <tbody>
-                {previewRows.map((row) => (
-                  <tr key={row.rowNumber}>
-                    <td>{row.rowNumber}</td>
-                    <td>
-                      <span className={"row-status row-status-" + row.status}>
-                        {row.status === "valid"
-                          ? "Valid"
-                          : row.status === "needs-resolution"
-                            ? "Resolve instrument"
-                            : "Invalid"}
-                      </span>
-                    </td>
-                    <td>
-                      {row.transaction ? (
-                        <div className="transaction-preview">
-                          <strong>{row.transaction.kind}</strong>
-                          <span>{row.transaction.instrumentId ?? "Portfolio-level"}</span>
-                          {row.transaction.quantity !== undefined ? <span>Qty: {row.transaction.quantity}</span> : null}
-                          {row.transaction.unitPrice !== undefined ? <span>Price: {row.transaction.unitPrice}</span> : null}
-                          {row.transaction.amount !== undefined ? <span>Amount: {row.transaction.amount}</span> : null}
-                        </div>
-                      ) : "Not accepted"}
-                    </td>
-                    <td>
-                      <details>
-                        <summary>View original row and {row.issues.length} issue{row.issues.length === 1 ? "" : "s"}</summary>
-                        <code className="raw-row">
-                          {row.rawValues.map((value, index) => `${result.headers[index] ?? "Column " + (index + 1)}: ${value || "(empty)"}`).join(" · ")}
-                        </code>
-                        {row.issues.length > 0 ? (
-                          <ul className="row-issues">
-                            {row.issues.map((issue, index) => (
-                              <li key={issue.code + "-" + (issue.field ?? "") + "-" + index}>
-                                {issue.field ? <strong>{issue.field}: </strong> : null}{issue.message}
-                              </li>
-                            ))}
-                          </ul>
+                {previewRows.map((row) => {
+                  const resolution = resolutionByRow[row.rowNumber];
+                  return (
+                    <tr key={row.rowNumber}>
+                      <td>{row.rowNumber}</td>
+                      <td>
+                        <span className={"row-status row-status-" + row.status}>
+                          {row.status === "valid"
+                            ? "Valid"
+                            : row.status === "needs-resolution"
+                              ? "Resolve instrument"
+                              : "Invalid"}
+                        </span>
+                      </td>
+                      <td>
+                        {row.transaction ? (
+                          <div className="transaction-preview">
+                            <strong>{row.transaction.kind}</strong>
+                            <span>{row.transaction.instrumentId ?? "Portfolio-level"}</span>
+                            {row.transaction.quantity !== undefined ? <span>Qty: {row.transaction.quantity}</span> : null}
+                            {row.transaction.unitPrice !== undefined ? <span>Price: {row.transaction.unitPrice}</span> : null}
+                            {row.transaction.amount !== undefined ? <span>Amount: {row.transaction.amount}</span> : null}
+                          </div>
+                        ) : "Not accepted"}
+                        {resolution?.status === "resolved" ? (
+                          <small className="resolution-note">Resolved: {resolution.instrument.displayName} ({resolution.instrument.exchange ?? "exchange unknown"})</small>
                         ) : null}
-                      </details>
-                    </td>
-                  </tr>
-                ))}
+                        {resolution?.status === "ambiguous" ? (
+                          <small className="resolution-note resolution-note-warning">Ambiguous: {resolution.reason}</small>
+                        ) : null}
+                        {resolution?.status === "unresolved" ? (
+                          <small className="resolution-note resolution-note-warning">Unresolved: {resolution.reason}</small>
+                        ) : null}
+                      </td>
+                      <td>
+                        <details>
+                          <summary>View original row and {row.issues.length} issue{row.issues.length === 1 ? "" : "s"}</summary>
+                          <code className="raw-row">
+                            {row.rawValues.map((value, index) => `${result.headers[index] ?? "Column " + (index + 1)}: ${value || "(empty)"}`).join(" · ")}
+                          </code>
+                          {row.issues.length > 0 ? (
+                            <ul className="row-issues">
+                              {row.issues.map((issue, index) => (
+                                <li key={issue.code + "-" + (issue.field ?? "") + "-" + index}>
+                                  {issue.field ? <strong>{issue.field}: </strong> : null}{issue.message}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </details>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
