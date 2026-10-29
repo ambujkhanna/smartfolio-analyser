@@ -62,7 +62,7 @@ function referenceForRow(row: CsvPreviewRow): InstrumentReference | null {
   const instrumentId = rawInstrumentId?.startsWith("SYMBOL:") ? undefined : rawInstrumentId;
   const isin = rawValue(row, ["isin"]);
   const amfiSchemeCode = rawValue(row, ["amfiSchemeCode", "schemeCode", "amfiCode"]);
-  const symbol = rawValue(row, ["symbol", "ticker", "tradingSymbol", "scrip", "security"]);
+  const symbol = rawValue(row, ["symbol", "ticker", "tradingSymbol", "scrip", "security", "schemeName", "fundName"]);
   const exchangeValue = rawValue(row, ["exchange", "stockExchange", "exchangeSegment"])?.toUpperCase();
   const exchange =
     exchangeValue === "NSE" || exchangeValue === "NSE_EQ"
@@ -70,13 +70,19 @@ function referenceForRow(row: CsvPreviewRow): InstrumentReference | null {
       : exchangeValue === "BSE" || exchangeValue === "BSE_EQ"
         ? "BSE"
         : undefined;
-  const assetValue = rawValue(row, ["assetType", "instrumentType"])?.toLowerCase();
+  const assetValue = rawValue(row, ["assetType", "instrumentType"])?.toLowerCase().replace(/[\\s_]/g, "-");
   const assetType =
-    assetValue === "equity" || assetValue === "etf" || assetValue === "mutual-fund" || assetValue === "other"
-      ? assetValue
-      : amfiSchemeCode
-        ? "mutual-fund"
-        : undefined;
+    assetValue === "equity" || assetValue === "stock" || assetValue === "share" || assetValue === "shares" || assetValue === "eq"
+      ? "equity"
+      : assetValue === "etf" || assetValue === "exchange-traded-fund"
+        ? "etf"
+        : assetValue === "mutual-fund" || assetValue === "mutualfund" || assetValue === "mf"
+          ? "mutual-fund"
+          : assetValue === "other"
+            ? "other"
+            : amfiSchemeCode
+              ? "mutual-fund"
+              : undefined;
 
   if (!instrumentId && !isin && !symbol && !amfiSchemeCode) return null;
   return {
