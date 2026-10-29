@@ -9,8 +9,8 @@
 
 ## Current status
 
-**Current phase/task:** Phase 1, Task 1.2 — Canonical transaction and result types  
-**Overall status:** The minimal app shell is implemented. Test/lint/CI configuration exists but has not been observed running. The first quote contract and validation tests have been added; canonical transaction types are the next coding task.  
+**Current phase/task:** Phase 1, Task 1.3 — Safe calculation boundary  
+**Overall status:** The minimal app shell is implemented. Test/lint/CI configuration exists but has not been observed running. Quote and canonical transaction contracts plus validation tests have been added; the safe mark-to-market boundary is the next coding task.  
 **Last verified repository state:** The branch contains app shell, ESLint/Vitest configuration, GitHub Actions workflow, money-formatting utility/tests, and quote validation/types/tests. Files are committed on this branch.  
 **Checks actually run:** No local npm command has been run. The GitHub Actions API query returned zero workflow runs at the time checked; no pass/fail result is available.  
 **Lockfile:** No package-lock.json is committed yet.  
@@ -26,11 +26,14 @@
 - [x] **Task 1.1 (implementation portion):** Added the MarketQuote contract and validation states for available, unavailable, invalid, mismatched, and stale quotes.
 - [x] Quote validation rejects non-positive/non-finite prices, instrument/currency mismatches, missing source, invalid quote type/time, future timestamps, and stale data.
 - [x] Added quote validation tests covering normal, missing, invalid-price, identity/currency mismatch, stale, future-time, and malformed-date cases.
+- [x] **Task 1.2 (implementation portion):** Added canonical transaction types for buy, sell, opening balance, fee, and dividend rows, including source file/row metadata.
+- [x] Added runtime transaction validation with structured issues and tests for invalid fields, missing prices, incomplete opening cost basis, fees, dates, and source metadata.
 - [x] Read the key changed source files back from GitHub after writes.
 
 ## In progress
 
-- [ ] **Task 1.2:** Define canonical transaction types and validation so imports cannot silently produce invalid ledger entries.
+- [ ] **Task 1.3:** Add pure mark-to-market calculation boundary using explicit validated quote results; no fake values for unavailable/stale quotes.
+- [ ] Execute quote and transaction validation tests; no local/CI execution result is available yet.
 - [ ] **Task 0.3 verification:** Obtain a real lint/test/build run and commit a package lockfile when a runtime is available.
 - [ ] Run quote and formatting tests; no local/CI execution result is available yet.
 
@@ -63,7 +66,8 @@
 | 2026-10-29 | Task 0.1 — Repository inventory | Confirmed actual repository structure and package scripts | Recursive Git tree and package.json fetched from GitHub |
 | 2026-10-29 | Task 0.2 — App shell | Added layout, landing page, styles, and ignore rules; no fake values | Files fetched back from GitHub; no build run |
 | 2026-10-29 | Task 0.3 — Quality foundation (partial) | Added ESLint, Vitest, test utility, and CI workflow | Files exist on branch; no Actions run observed; no local commands run |
-| 2026-10-29 | Task 1.1 — Quote contract (implementation) | Added typed quote/provenance model, validation states, and regression tests | Source/test files fetched from GitHub; tests not executed |
+| 2026-10-29 | Task 1.1 — Quote contract | Added typed quote/provenance model, validation states, and regression tests | Source/test files fetched from GitHub; tests not executed |
+| 2026-10-29 | Task 1.2 — Canonical transactions | Added transaction kinds, source metadata, validation boundary, and regression tests | Source/test files committed; tests not executed |
 | 2026-10-29 | Plan breakdown | Converted broad roadmap into small tasks with exit gates | plan.md fetched after update |
 
 ## Per-task update template
