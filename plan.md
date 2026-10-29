@@ -96,11 +96,13 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [ ] Preserve traceability from every result back to source transactions.
 
 ### Task 2.3 — Implement P&L and recovery calculations
-- [ ] Calculate realized and unrealized P&L separately.
-- [ ] Calculate economic P&L from documented cash-flow components without double counting.
-- [ ] Calculate position break-even and lifecycle recovery separately.
-- [ ] Return warnings and completeness metadata alongside numeric results.
-- [ ] Test buy-and-hold, averaging, partial sale, full close, re-entry, fees, missing history, and oversell cases.
+- [x] Calculate realized and unrealized P&L separately.
+- [x] Calculate economic P&L from documented cash-flow components without double counting.
+- [x] Calculate position break-even and lifecycle recovery separately.
+- [x] Return warnings and completeness metadata alongside numeric results.
+- [x] Add regression tests for sell/re-buy, FIFO partial sale, missing quote, and unknown opening cost.
+- [ ] Expand tests to cover buy-and-hold, full close, fee/dividend allocation, duplicate import, and oversell interactions.
+- [ ] Execute all tests in CI/local runtime and fix any failures.
 
 **Exit gate:** Hand-calculated scenarios pass deterministic tests.
 
