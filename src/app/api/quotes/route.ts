@@ -168,9 +168,9 @@ export async function POST(request: Request): Promise<Response> {
 
   const accessKey = process.env.SMARTFOLIO_ACCESS_KEY;
   const token = process.env.UPSTOX_ANALYTICS_TOKEN;
-  if (!accessKey || accessKey.length < 32 || !token) {
+  if (!accessKey || accessKey.length < 32) {
     return Response.json(
-      { error: "Live quotes are not configured. Set SMARTFOLIO_ACCESS_KEY (32+ random characters) and UPSTOX_ANALYTICS_TOKEN in the server environment." },
+      { error: "Quote access is not configured. Set SMARTFOLIO_ACCESS_KEY (32+ random characters) in the server environment." },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
@@ -252,6 +252,13 @@ export async function POST(request: Request): Promise<Response> {
   const equityReferences = references
     .map((reference, index) => ({ reference, index }))
     .filter(({ reference }) => !isMutualFundReference(reference));
+
+  if (equityReferences.length > 0 && !token) {
+    return Response.json(
+      { error: "Equity/ETF quotes are not configured. Set UPSTOX_ANALYTICS_TOKEN on the server; AMFI mutual-fund NAVs do not require this token." },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   if (equityReferences.length > 0) {
     const master = await loadUpstoxInstrumentMaster();
@@ -338,7 +345,7 @@ export async function POST(request: Request): Promise<Response> {
       if (requests.length > 0) {
         const fetched = await fetchUpstoxQuotes(
           requests.map((entry) => entry.instrument),
-          { token, maxAgeMs: MAX_EQUITY_QUOTE_AGE_MS, nowMs },
+          { token: token as string, maxAgeMs: MAX_EQUITY_QUOTE_AGE_MS, nowMs },
         );
         const resultById = new Map(fetched.map((item) => [item.instrumentId, item.result]));
 
