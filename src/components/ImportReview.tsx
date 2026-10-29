@@ -13,6 +13,7 @@ import { parseGenericCsv, type CsvPreviewRow, type GenericCsvImportResult } from
 import { parseZerodhaTradebook } from "../importers/zerodhaTradebook";
 import { formatINR } from "../lib/formatMoney";
 import type { QuoteValidation } from "../domain/quote";
+import ZerodhaHoldingsReconciliation from "./ZerodhaHoldingsReconciliation";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const PREVIEW_ROW_LIMIT = 50;
@@ -496,6 +497,8 @@ export default function ImportReview() {
                   No validated market quote was supplied for one or more open positions. Their market value and unrealized P&amp;L, and the portfolio economic P&amp;L, remain unavailable. No price has been guessed.
                 </p>
               ) : null}
+
+              <ZerodhaHoldingsReconciliation positions={analysis.pnl.instrumentMetrics} />
 
               {openPositions.length > 0 ? (
                 <div className="quote-access-panel">
