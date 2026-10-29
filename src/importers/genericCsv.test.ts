@@ -2,6 +2,26 @@ import { describe, expect, it } from "vitest";
 import { parseGenericCsv } from "./genericCsv";
 
 describe("parseGenericCsv", () => {
+  it("auto-detects tab-delimited TXT exports", () => {
+    const result = parseGenericCsv(
+      "transactionId\\tkind\\tISIN\\tdate\\tcurrency\\tquantity\\tprice\\nT-1\\tbuy\\tINE002A01018\\t2026-10-01\\tINR\\t10\\t125.5",
+      "trades.txt",
+    );
+    expect(result.rowCount).toBe(1);
+    expect(result.acceptedCount).toBe(1);
+    expect(result.transactions[0].quantity).toBe(10);
+    expect(result.transactions[0].unitPrice).toBe(125.5);
+  });
+
+  it("auto-detects semicolon-delimited exports", () => {
+    const result = parseGenericCsv(
+      "transactionId;kind;ISIN;date;currency;quantity;price\\nT-1;buy;INE002A01018;2026-10-01;INR;10;125.5",
+      "trades.csv",
+    );
+    expect(result.acceptedCount).toBe(1);
+    expect(result.transactions[0].unitPrice).toBe(125.5);
+  });
+
   it("normalizes valid trades and preserves source row metadata", () => {
     const result = parseGenericCsv(
       "transactionId,kind,ISIN,date,currency,quantity,price\nT-1,buy,INE002A01018,2026-10-01,INR,10,125.5",
