@@ -50,12 +50,19 @@ function reconcile(
   holdings: KiteHolding[],
   positions: PnlPosition[],
 ): { rows: ReconciledHolding[]; unmatchedLedger: PnlPosition[] } {
-  const ledgerByIsin = new Map<string, PnlPosition[]>();
+  // Aggregate ledger positions by ISIN because the same security can appear under
+  // multiple exchange-qualified instrument IDs while Zerodha holdings are grouped by ISIN.
+  const ledgerByIsin = new Map<string, { quantity: number; instrumentIds: string[] }>();
+  const positionsWithoutIsin: PnlPosition[] = [];
   for (const position of positions.filter((item) => item.openQuantity > 0)) {
     const isin = isinFromInstrumentId(position.instrumentId);
-    if (!isin) continue;
-    const group = ledgerByIsin.get(isin) ?? [];
-    group.push(position);
+    if (!isin) {
+      positionsWithoutIsin.push(position);
+      continue;
+    }
+    const group = ledgerByIsin.get(isin) ?? { quantity: 0, instrumentIds: [] };
+    group.quantity += position.openQuantity;
+    group.instrumentIds.push(position.instrumentId);
     ledgerByIsin.set(isin, group);
   }
 
@@ -90,8 +97,8 @@ function reconcile(
   const rows: ReconciledHolding[] = [];
   const matchedIsins = new Set<string>();
   for (const [isin, holding] of holdingsByIsin) {
-    const candidates = ledgerByIsin.get(isin) ?? [];
-    if (candidates.length !== 1) {
+    const ledger = ledgerByIsin.get(isin);
+    if (!ledger) {
       rows.push({
         isin,
         symbols: [...holding.symbols],
@@ -103,26 +110,28 @@ function reconcile(
       });
       continue;
     }
-    const position = candidates[0];
-    const difference = holding.quantity - position.openQuantity;
+    const difference = holding.quantity - ledger.quantity;
     matchedIsins.add(isin);
     rows.push({
       isin,
       symbols: [...holding.symbols],
       exchanges: [...holding.exchanges],
       brokerQuantity: holding.quantity,
-      ledgerQuantity: position.openQuantity,
+      ledgerQuantity: ledger.quantity,
       difference,
       status: Math.abs(difference) < 0.000001 ? "matched" : "quantity-mismatch",
     });
   }
 
   rows.push(...notIdentifiable);
-  const unmatchedLedger = positions.filter((position) => {
-    if (position.openQuantity <= 0) return false;
-    const isin = isinFromInstrumentId(position.instrumentId);
-    return !isin || !matchedIsins.has(isin);
-  });
+  const unmatchedLedger = positionsWithoutIsin.concat(
+    [...ledgerByIsin.entries()]
+      .filter(([isin]) => !matchedIsins.has(isin))
+      .flatMap(([, ledger]) => ledger.instrumentIds.map((instrumentId) => ({
+        instrumentId,
+        openQuantity: ledger.quantity,
+      }))),
+  );
   return { rows, unmatchedLedger };
 }
 
