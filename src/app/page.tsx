@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ImportReview from "../components/ImportReview";
 
 export default function HomePage() {
   return (
@@ -28,15 +29,17 @@ export default function HomePage() {
         <div className="notice" role="status">
           <span className="notice-icon" aria-hidden="true">i</span>
           <div>
-            <strong>Analysis is not available yet</strong>
+            <strong>Portfolio analysis is not available yet</strong>
             <p>
-              Transaction import, accounting calculations, and verified market
-              data are still being implemented. No sample prices or placeholder
-              portfolio values are shown.
+              You can preview a CSV and review validation issues below. Portfolio
+              calculations and live market data are still being connected, so
+              this page does not display sample prices or placeholder P&amp;L.
             </p>
           </div>
         </div>
       </section>
+
+      <ImportReview />
 
       <section className="principles" aria-labelledby="principles-title">
         <div className="section-heading">
