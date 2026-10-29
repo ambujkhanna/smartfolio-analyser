@@ -60,7 +60,7 @@ describe("parseGenericCsv", () => {
 
   it("rejects malformed thousands separators instead of stripping arbitrary commas", () => {
     const result = parseGenericCsv(
-      'kind,ISIN,date,currency,quantity,price\\nbuy,INE002A01018,2026-10-01,INR,"1,2,3",10',
+      'kind,ISIN,date,currency,quantity,price\nbuy,INE002A01018,2026-10-01,INR,"1,2,3",10',
       "trades.csv",
     );
     expect(result.rows[0].status).toBe("invalid");
