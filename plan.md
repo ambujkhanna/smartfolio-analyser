@@ -133,6 +133,21 @@ This is an executable task plan. Complete one task at a time. After each task, u
 
 **Exit gate:** Supported files parse with visible errors and holdings discrepancies are explainable.
 
+### Task 3.4 — Automatic-first broker data acquisition (product requirement)
+
+- [ ] Treat broker connections as the default data source; a user must not be forced to upload separate dividend, corporate-action, charge, or opening-balance reports when an authorised platform API or already-imported source can supply the needed records.
+- [ ] Add a provider capability registry by broker, asset class, data type, historical coverage, and authentication state. Never infer that an endpoint exists just because another broker has it.
+- [ ] Fetch all available read-only sources from each connected broker and preserve provider, retrieval time, coverage period, source IDs, and raw-record provenance.
+- [ ] Normalize and deduplicate records across connected providers using stable provider IDs first, then conservative composite keys; never silently merge uncertain matches.
+- [ ] Build a data-completeness assessment after automatic sync: compare trades, positions, holdings, charges, dividends, corporate actions, mutual funds, and cash flows only where relevant data is available.
+- [ ] Ask for a user file/value only when the required data is not exposed by the connected platform, the user has not connected that source, or a record cannot be reliably matched. Explain the exact gap, why it changes a metric, and the smallest useful report/date range to supply.
+- [ ] Keep unsupported/unavailable sources optional. Missing data should mark affected metrics incomplete; it must not block the entire analysis or force irrelevant report uploads.
+- [ ] Keep data read-only; no order placement or account mutation. Do not create transactions from holdings snapshots. Use snapshots for reconciliation/opening-balance evidence only.
+- [ ] Add fixtures/tests for duplicate records across providers, missing history, partial API coverage, ambiguous corporate actions, missing charges, and a fully auto-resolved portfolio that requires no uploads.
+- [ ] Verify each provider's current official API capabilities and commercial limits before implementation. Zerodha's current Kite Connect endpoints include holdings and positions, while its standard orders/trades endpoints are current-day; Groww documents portfolio/order/trade APIs but access and pricing must be checked. Dividend/corporate-action history must not be presumed available from either API without an explicit supported endpoint.
+
+**Acceptance criteria:** Users can connect supported platforms and receive a coverage report without uploading one file per transaction category. The app only asks for additional input to resolve a specific, material data gap; every request explains why it is needed. No missing data is fabricated and no report is mandatory merely because its category exists.
+
 ## Phase 4 — Instrument identity
 
 ### Task 4.1 — Create instrument identity model
