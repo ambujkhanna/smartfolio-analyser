@@ -2,10 +2,16 @@ name: Quality checks
 
 on:
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
   push:
     branches:
       - main
       - "feat/**"
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
 
 permissions:
   contents: write
