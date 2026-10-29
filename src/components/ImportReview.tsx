@@ -123,8 +123,12 @@ export default function ImportReview() {
     setAnalysis(null);
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      setError("Choose a CSV file. Other file formats are not supported yet.");
+    const extension = file.name.toLowerCase().split(".").pop() ?? "";
+    if (!["csv", "txt"].includes(extension)) {
+      const message = ["xls", "xlsx", "pdf"].includes(extension)
+        ? "This format is not enabled in the current build yet."
+        : "This file format is not supported.";
+      setError(message + " For now, upload a CSV or delimited TXT file. Spreadsheet and PDF parsing need dedicated parsers and validation.");
       event.target.value = "";
       return;
     }
@@ -138,6 +142,14 @@ export default function ImportReview() {
     setIsReading(true);
     try {
       const text = await file.text();
+      if (!text.trim()) {
+        setError("The selected file is empty.");
+        return;
+      }
+      if (text.includes("\\u0000")) {
+        setError("This file appears to contain binary data, not delimited text. Spreadsheet and PDF parsing are not enabled yet.");
+        return;
+      }
       setResult(parseGenericCsv(text, file.name));
     } catch {
       setError("The file could not be read. Check that it is a valid text CSV and try again.");
@@ -366,24 +378,24 @@ export default function ImportReview() {
       <div className="import-heading">
         <div>
           <p className="eyebrow">Step 1 · Review your data</p>
-          <h2 id="import-title">Preview a tradebook CSV</h2>
+          <h2 id="import-title">Preview a financial data file</h2>
           <p className="import-description">
             The file is parsed in your browser. Invalid rows stay visible; rows with a symbol but no stable identity can be resolved against a trusted instrument master.
           </p>
         </div>
-        <span className="file-limit">CSV · up to 5 MB</span>
+        <span className="file-limit">CSV / delimited TXT · up to 5 MB</span>
       </div>
 
       <label className="file-picker" htmlFor="tradebook-file">
         <span className="file-picker-icon" aria-hidden="true">↑</span>
         <span>
-          <strong>{isReading ? "Reading file…" : "Choose a CSV file"}</strong>
-          <small>The file stays in your browser. If you request resolution, only instrument identifiers are sent to the server.</small>
+          <strong>{isReading ? "Reading file…" : "Choose a CSV or TXT file"}</strong>
+          <small>The file stays in your browser. CSV and delimited TXT are supported now; XLS/XLSX and PDF require dedicated parsers. If you request resolution, only instrument identifiers are sent to the server.</small>
         </span>
         <input
           id="tradebook-file"
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,.txt,text/csv,text/plain"
           onChange={handleFileChange}
           disabled={isReading || isResolving}
         />
