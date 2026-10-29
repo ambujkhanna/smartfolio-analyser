@@ -9,11 +9,11 @@
 
 ## Current status
 
-**Current phase/task:** Zerodha read-only connector scaffold — run CI, resolve any issues, then configure the Personal app callback and validate real account data. Holdings reconciliation and import hardening remain pending. XLS/XLSX and PDF remain future parser tasks.  
-**Overall status:** The app includes browser-side CSV preview, local FIFO/P&L calculation, instrument resolution, a protected quote endpoint, quote provenance UI, and a browser action that requests quotes and recalculates open-position valuations. The endpoint supports Upstox equity/ETF quotes and AMFI mutual-fund NAVs. Live provider calls remain unverified until server secrets are configured and a real authenticated response is tested.  
-**Last verified code checks:** The latest previously confirmed quality run is [40826588884](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40826588884) on SHA `0b3f1ff4a7d0fe51eb6c3a60174e67a07ce14050`. The Zerodha connector scaffold is now committed on the feature branch; CI for the current head is pending and must pass before treating the changes as verified. Live authentication/provider calls remain unverified.  
+**Current phase/task:** Add read-only reconciliation between imported-ledger open quantities and current Zerodha holdings. The user verified that all four Zerodha data buttons (holdings, positions, current-day orders, current-day trades) return data in the Preview browser. The reconciliation UI has been added on this branch; automated checks for the latest commits are pending. XLS/XLSX and PDF remain future parser tasks.  
+**Overall status:** The app includes browser-side CSV preview, local FIFO/P&L calculation, instrument resolution, a protected quote endpoint, quote provenance UI, and a read-only Zerodha Kite Connect integration. The user has verified live responses for holdings, positions, current-day orders, and current-day trades in the Vercel Preview browser. A new reconciliation panel compares imported-ledger open quantities with current Zerodha holdings by exact ISIN; it does not add holdings snapshots as transactions or alter P&L. Upstox quote/NAV provider calls remain separately unverified.  
+**Last verified code checks:** The latest previously confirmed quality run is [40826588884](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40826588884) on SHA `0b3f1ff4a7d0fe51eb6c3a60174e67a07ce14050`. Latest reconciliation changes are committed on `feat/reliable-pnl-foundation`; CI/lint/test/build for the new head has not yet been verified. Do not treat the new reconciliation UI as code-verified until checks pass.  
 **Lockfile:** `package-lock.json` is committed. The quality workflow uses `npm ci` when the lockfile exists. Documentation-only commits no longer trigger redundant CI runs.  
-**Current market-data state:** The browser UI calls `/api/quotes` with the Smartfolio access key and recalculates valuations from returned quote results. The server route uses `SMARTFOLIO_ACCESS_KEY` and `UPSTOX_ANALYTICS_TOKEN`; AMFI NAV requests do not need the Upstox token. Real provider requests remain unverified because deployment secrets have not yet been configured.
+**Current market-data state:** The browser UI calls `/api/quotes` with the Smartfolio access key and recalculates valuations from returned quote results. The server route uses `SMARTFOLIO_ACCESS_KEY` and `UPSTOX_ANALYTICS_TOKEN`; AMFI NAV requests do not need the Upstox token. Live Zerodha account-data requests have been verified by the user in Preview. Live Upstox quote/NAV requests remain unverified.
 
 ## Completed
 
@@ -42,6 +42,8 @@
 
 ## In progress
 
+- [ ] **Zerodha holdings reconciliation:** UI now compares the current holdings snapshot with imported-ledger open quantities using exact ISINs. Validate lint, TypeScript, build, and edge cases in CI before treating this as complete.
+
 - [ ] **Task 6.3:** Finish quality reporting and reconciliation states; broker holdings comparison and stale-quote display need live data wiring.
 - [x] Add a trusted instrument-master parser/loader so imported ISIN/symbol references can resolve to provider keys without guessing.
 - [x] Integrate safe instrument lookup into the import flow; live master download still needs verification.
@@ -54,7 +56,7 @@
 - [ ] Production instrument master data and symbol-change/alias coverage.
 - [x] Protected server-side quote/NAV endpoint with cache, bounded request sizes, and access controls (best-effort in-memory limits; shared limits remain a production hardening item).
 - [x] Live quote/NAV retrieval connected to the import-review dashboard; live provider verification remains outstanding.
-- [ ] Broker holdings/opening-position import and quantity reconciliation.
+- [ ] Broker holdings/opening-position import. Quantity reconciliation is implemented as a read-only comparison; do not convert a holdings snapshot into transactions because that would risk double counting.
 - [ ] Persistent portfolio storage.
 - [ ] UI component tests for import review and P&L preview.
 - [ ] Final security review, deployment verification, and release PR.
