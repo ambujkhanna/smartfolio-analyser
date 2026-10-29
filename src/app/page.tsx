@@ -1,5 +1,6 @@
 import Link from "next/link";
 import ImportReview from "../components/ImportReview";
+import ZerodhaPanel from "../components/ZerodhaPanel";
 
 export default function HomePage() {
   return (
@@ -46,6 +47,8 @@ export default function HomePage() {
           <p className="hero-copy">Requires server-side Kite Connect credentials and a registered callback URL. The free Personal plan does not include the paid live market-data APIs.</p>
         </div>
       </section>
+
+      <ZerodhaPanel />
 
       <ImportReview />
 
