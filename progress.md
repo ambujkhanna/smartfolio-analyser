@@ -86,6 +86,7 @@
 | 2026-10-29 | Task 5.3 — AMFI NAV parser/resolver | Added current-format parser, scheme resolution, valuation-date provenance, and tests | Source/test committed; current live feed not fetched; CI verification pending |
 | 2026-10-29 | Task 6.1 — Import preview UI | Added browser-side CSV preview, row diagnostics, raw-cell details, and file guardrails | Files committed; lint/test/build verification pending |
 | 2026-10-29 | README refresh | Updated repository README to describe current implementation and limitations accurately | README fetched after commit; full CI verification pending |
+| 2026-10-29 | CI verification attempt | Lint passed and 70 tests passed; build found TypeScript narrowing issue in stale quote branch | GitHub Actions run 40815381316; source fix committed as 38b53b2; rerun pending |
 
 ## Per-task update template
 
