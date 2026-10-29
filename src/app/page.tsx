@@ -37,6 +37,16 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="principles" aria-labelledby="zerodha-title">
+        <div className="section-heading">
+          <p className="eyebrow">Broker connection · read-only</p>
+          <h2 id="zerodha-title">Connect your Zerodha account</h2>
+          <p>Authorize through Zerodha to retrieve available holdings, positions, orders, and trade records. Smartfolio will not place trades.</p>
+          <p><Link className="brand" href="/api/zerodha/login">Connect Zerodha securely →</Link></p>
+          <p className="hero-copy">Requires server-side Kite Connect credentials and a registered callback URL. The free Personal plan does not include the paid live market-data APIs.</p>
+        </div>
+      </section>
+
       <ImportReview />
 
       <section className="principles" aria-labelledby="principles-title">
