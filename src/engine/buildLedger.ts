@@ -22,6 +22,14 @@ export interface InstrumentLedger {
   realizedPnl: number | null;
   realizedPnlKnownSubtotal: number;
   realizedPnlComplete: boolean;
+  buyOutflows: number;
+  netSaleProceeds: number;
+  standaloneFees: number;
+  dividends: number;
+  knownOpeningBasis: number;
+  hasUnknownOpeningBasis: boolean;
+  unallocatedStandaloneFees: number;
+  unallocatedDividends: number;
   lots: LotSnapshot[];
 }
 
@@ -54,6 +62,12 @@ interface MutableInstrumentLedger {
   lots: MutableLot[];
   realizedPnlKnownSubtotal: number;
   realizedPnlComplete: boolean;
+  buyOutflows: number;
+  netSaleProceeds: number;
+  standaloneFees: number;
+  dividends: number;
+  knownOpeningBasis: number;
+  hasUnknownOpeningBasis: boolean;
 }
 
 function isDateOnly(value: string): boolean {
@@ -131,6 +145,12 @@ export function buildLedger(input: unknown[]): LedgerResult {
         lots: [],
         realizedPnlKnownSubtotal: 0,
         realizedPnlComplete: true,
+        buyOutflows: 0,
+        netSaleProceeds: 0,
+        standaloneFees: 0,
+        dividends: 0,
+        knownOpeningBasis: 0,
+        hasUnknownOpeningBasis: false,
       };
       byInstrument.set(instrumentId, ledger);
     }
@@ -171,6 +191,8 @@ export function buildLedger(input: unknown[]): LedgerResult {
     dividends: 0,
     knownOpeningBasis: 0,
     hasUnknownOpeningBasis: false,
+    unallocatedStandaloneFees: 0,
+    unallocatedDividends: 0,
   };
 
   for (const transaction of transactions) {
@@ -189,6 +211,7 @@ export function buildLedger(input: unknown[]): LedgerResult {
         remainingQuantity: quantity,
         remainingCostTotal: costTotal,
       });
+      ledger.buyOutflows += costTotal;
       cashFlows.buyOutflows += costTotal;
       continue;
     }
@@ -203,6 +226,7 @@ export function buildLedger(input: unknown[]): LedgerResult {
           remainingCostTotal: null,
         });
         cashFlows.hasUnknownOpeningBasis = true;
+        ledger.hasUnknownOpeningBasis = true;
         warnings.push({
           code: "UNKNOWN_OPENING_BASIS",
           transactionId: transaction.transactionId,
@@ -221,6 +245,7 @@ export function buildLedger(input: unknown[]): LedgerResult {
           remainingQuantity: quantity,
           remainingCostTotal: costTotal,
         });
+        ledger.knownOpeningBasis += costTotal;
         cashFlows.knownOpeningBasis += costTotal;
       }
       continue;
@@ -270,6 +295,7 @@ export function buildLedger(input: unknown[]): LedgerResult {
       }
 
       ledger.lots = ledger.lots.filter((lot) => lot.remainingQuantity > 1e-9);
+      ledger.netSaleProceeds += netProceeds;
       cashFlows.netSaleProceeds += netProceeds;
       if (allocatedCostKnown) {
         ledger.realizedPnlKnownSubtotal += netProceeds - allocatedCost;
@@ -286,12 +312,24 @@ export function buildLedger(input: unknown[]): LedgerResult {
     }
 
     if (transaction.kind === "fee") {
-      cashFlows.standaloneFees += transaction.amount as number;
+      const amount = transaction.amount as number;
+      cashFlows.standaloneFees += amount;
+      if (instrumentId) {
+        getLedger(instrumentId).standaloneFees += amount;
+      } else {
+        cashFlows.unallocatedStandaloneFees += amount;
+      }
       continue;
     }
 
     if (transaction.kind === "dividend") {
-      cashFlows.dividends += transaction.amount as number;
+      const amount = transaction.amount as number;
+      cashFlows.dividends += amount;
+      if (instrumentId) {
+        getLedger(instrumentId).dividends += amount;
+      } else {
+        cashFlows.unallocatedDividends += amount;
+      }
     }
   }
 
@@ -312,6 +350,12 @@ export function buildLedger(input: unknown[]): LedgerResult {
         realizedPnl: realizedPnlComplete ? ledger.realizedPnlKnownSubtotal : null,
         realizedPnlKnownSubtotal: ledger.realizedPnlKnownSubtotal,
         realizedPnlComplete,
+        buyOutflows: ledger.buyOutflows,
+        netSaleProceeds: ledger.netSaleProceeds,
+        standaloneFees: ledger.standaloneFees,
+        dividends: ledger.dividends,
+        knownOpeningBasis: ledger.knownOpeningBasis,
+        hasUnknownOpeningBasis: ledger.hasUnknownOpeningBasis,
         lots: ledger.lots.map((lot) => ({ ...lot })),
       };
     });
