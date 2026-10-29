@@ -9,30 +9,29 @@
 
 ## Current status
 
-**Current phase/task:** Phase 0, Task 0.3 — Establish automated test/build workflow  
-**Overall status:** Task 0.1 repository inventory and task breakdown are complete. Task 0.2 app shell is implemented and verified by reading the files back from GitHub.  
-**Last verified repository state:** The implementation branch now contains `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css`, and `.gitignore`, in addition to docs and package configuration.  
-**Build/test status:** Build, lint, and tests have **not** been run. The GitHub integration can write/read repository files but does not provide a local Node.js runtime in this workflow. There is no lockfile or installed dependency tree in the repository.  
-**Financial-data integrity:** The landing page explicitly says analysis is not available yet and does not display mock holdings, prices, or P&L. The accounting engine is not implemented yet.
+**Current phase/task:** Phase 0, Task 0.3 — Establish automated test/build workflow (partially implemented; verification outstanding)  
+**Overall status:** Task 0.1 inventory and Task 0.2 app shell are complete. Task 0.3 now has test/lint/CI configuration and a first deterministic unit test, but has not passed an actual runtime/CI verification.  
+**Last verified repository state:** The implementation branch contains the Next.js shell, `eslint.config.mjs`, `vitest.config.ts`, `src/lib/formatMoney.ts`, `src/lib/formatMoney.test.ts`, and `.github/workflows/quality.yml`.  
+**Checks actually run:** No local `npm install`, lint, test, or build command has been run. GitHub Actions API query returned zero workflow runs at the time checked. This does not prove a CI run passed or failed.  
+**Lockfile:** No `package-lock.json` exists yet. The workflow uses `npm install` to avoid falsely claiming `npm ci` works without a lockfile; reproducible dependency pinning remains outstanding.  
+**Financial-data integrity:** The landing page does not show fake portfolio data. No accounting engine or market-data provider has been implemented yet.
 
 ## Completed
 
 - [x] Confirmed repository is `ambujkhanna/smartfolio-analyser` and default branch is `main`.
-- [x] Created non-main implementation branch `feat/reliable-pnl-foundation` from the documentation branch.
-- [x] Inspected the complete recursive Git tree.
-- [x] Inspected package.json: Next.js 15, React 19, TypeScript 5.9, ESLint 9, and Vitest are declared; scripts include dev/build/start/lint/test.
-- [x] Confirmed the new repository initially had no source app entry point, tests, test config, ESLint config, or lockfile.
-- [x] Broke the implementation roadmap into small task IDs and explicit exit gates in plan.md.
-- [x] **Task 0.2:** Added `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css`, and `.gitignore`.
-- [x] Made the landing page clearly disclose that transaction import, calculations, and verified market data are not available yet.
-- [x] Verified the four Task 0.2 files by fetching them back from GitHub and checked that they contain no hard-coded sample price/fallback pattern.
+- [x] Created non-main implementation branch `feat/reliable-pnl-foundation`.
+- [x] Inspected the recursive Git tree and package scripts.
+- [x] Broke the roadmap into small task IDs and explicit exit gates in plan.md.
+- [x] **Task 0.2:** Added layout, landing page, global CSS, and `.gitignore`; read all files back from GitHub.
+- [x] **Task 0.3 (configuration portion):** Added ESLint 9 flat config compatibility, Vitest config, a deterministic money-formatting helper/test, and a GitHub Actions workflow.
+- [x] Test explicitly distinguishes true zero from missing values and rejects NaN/Infinity in the display helper.
+- [x] Inspected workflow source and removed npm caching because there is no lockfile yet.
 
 ## In progress
 
-- [ ] **Task 0.3:** Establish test/lint/build configuration and CI checks.
-- [ ] Add a minimal deterministic test and ensure the declared `test` command has a real test to run.
-- [ ] Add ESLint 9 configuration and a CI workflow.
-- [ ] Establish a reproducible lockfile using the package manager when a runtime is available.
+- [ ] **Task 0.3:** Obtain an actual successful lint/test/build run and establish dependency lockfile.
+- [ ] Verify whether GitHub Actions is enabled and workflow triggers for this repository.
+- [ ] Fix any configuration or test failures revealed by a real run.
 
 ## Not yet implemented
 
@@ -46,22 +45,25 @@
 
 ## Blockers / decisions
 
-- No representative broker export is present yet; choose the first broker adapter only after a sanitized sample is available.
-- Market-data provider selection must follow current official terms, coverage, quotas, freshness, and cost review.
+- This workflow currently has no available local Node.js/package-manager execution path; commands have not been run from this environment.
+- GitHub Actions workflow was committed, but the Actions runs query returned zero runs. The workflow has not been observed executing yet.
+- No package lockfile is committed. A lockfile should be generated and checked in once npm can run in a repository checkout.
+- No representative broker export is present yet.
+- Provider selection must follow current official terms, coverage, quotas, freshness, and cost review.
 - Opening cost basis, cost-allocation method, dividends, and fee allocation must be explicitly scoped before those calculations are exposed.
-- Build/test/lint commands have not been run because this workflow currently has no local Node.js runtime. Do not describe the app as build-verified until CI or a runtime run proves it.
 
 ## Next single task
 
-**Task 0.3 — Establish automated test/build workflow.** Add compatible ESLint/Vitest configuration, one meaningful deterministic unit test, and a GitHub Actions workflow for install, lint, test, and build. Then update this tracker with exact results; configuration alone is not proof that checks pass.
+**Finish Task 0.3 verification.** Check the workflow trigger/status in GitHub, obtain an npm lockfile in a real checkout, run lint/tests/build, and record exact results. If this environment cannot execute commands, continue implementation in small, test-first commits but do not claim verification until CI reports it.
 
 ## Task history
 
 | Date | Task | Outcome | Verification |
 |---|---|---|---|
 | 2026-10-29 | Task 0.1 — Repository inventory and task breakdown | Confirmed actual repository state and decomposed roadmap into small tasks | Recursive Git tree and package.json fetched from GitHub |
-| 2026-10-29 | Task 0.2 — Minimal Next.js shell | Added layout, landing page, global CSS, and .gitignore; no fake portfolio numbers shown | All four files fetched back from GitHub; no build/lint/test run |
-| 2026-10-29 | Documentation migration | README, project log, plan, and progress tracker exist on the dedicated repository's documentation branch | Files fetched back from GitHub and content checked |
+| 2026-10-29 | Task 0.2 — Minimal Next.js shell | Added layout, landing page, global CSS, and .gitignore; no fake portfolio numbers shown | All files fetched back from GitHub; build/lint/test not run |
+| 2026-10-29 | Task 0.3 — Test/lint/CI foundation (partial) | Added ESLint config, Vitest config, format utility and tests, GitHub Actions quality workflow | Files committed and source read back; no workflow runs observed; no local commands run |
+| 2026-10-29 | Documentation and task-plan update | Rewrote plan into small task IDs and kept this tracker current | plan.md and progress.md committed on implementation branch |
 
 ## Per-task update template
 
