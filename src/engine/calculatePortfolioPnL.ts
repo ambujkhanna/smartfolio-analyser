@@ -88,9 +88,25 @@ export function calculatePortfolioPnL(
     } else {
       marketValue = valuation.marketValue;
       marketValueSubtotal += valuation.marketValue;
+      if (!Number.isFinite(marketValueSubtotal)) {
+        marketValueComplete = false;
+        warnings.push({
+          code: "NUMERIC_OVERFLOW",
+          instrumentId: instrument.instrumentId,
+          message: "Portfolio market value total exceeds the supported numeric range.",
+        });
+      }
       if (valuation.status === "valued") {
         unrealizedPnl = valuation.unrealizedPnl;
         unrealizedPnlSubtotal += valuation.unrealizedPnl;
+        if (!Number.isFinite(unrealizedPnlSubtotal)) {
+          unrealizedPnlComplete = false;
+          warnings.push({
+            code: "NUMERIC_OVERFLOW",
+            instrumentId: instrument.instrumentId,
+            message: "Portfolio unrealized P&L total exceeds the supported numeric range.",
+          });
+        }
       } else {
         unrealizedPnlComplete = false;
         reason = valuation.reason;
