@@ -21,6 +21,8 @@ export interface InstrumentReference {
   symbol?: string;
   exchange?: Exchange;
   assetType?: AssetType;
+  /** Exact AMFI scheme code for mutual-fund NAV lookups. */
+  amfiSchemeCode?: string;
 }
 
 export type InstrumentResolution =
