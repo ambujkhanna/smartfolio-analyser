@@ -10,6 +10,7 @@ import { buildLedger, type LedgerResult } from "../engine/buildLedger";
 import { calculatePortfolioPnL, type PortfolioPnL } from "../engine/calculatePortfolioPnL";
 import { buildPositionValuations } from "../engine/quoteValuations";
 import { parseGenericCsv, type CsvPreviewRow, type GenericCsvImportResult } from "../importers/genericCsv";
+import { parseZerodhaTradebook } from "../importers/zerodhaTradebook";
 import { formatINR } from "../lib/formatMoney";
 import type { QuoteValidation } from "../domain/quote";
 
@@ -146,11 +147,11 @@ export default function ImportReview() {
         setError("The selected file is empty.");
         return;
       }
-      if (text.includes("\\u0000")) {
+      if (text.includes("\u0000")) {
         setError("This file appears to contain binary data, not delimited text. Spreadsheet and PDF parsing are not enabled yet.");
         return;
       }
-      setResult(parseGenericCsv(text, file.name));
+      setResult(parseZerodhaTradebook(text, file.name) ?? parseGenericCsv(text, file.name));
     } catch {
       setError("The file could not be read. Check that it is a valid text CSV and try again.");
     } finally {
