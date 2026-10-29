@@ -65,7 +65,7 @@ export function resolveInstrument(
     reference.assetType ? item.assetType === reference.assetType : true,
   );
 
-  let explicitId = normalize(reference.instrumentId);
+  const explicitId = normalize(reference.instrumentId);
   let isin = normalize(reference.isin);
   let exchange = normalizeExchange(reference.exchange);
 
