@@ -51,6 +51,29 @@ function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
+function isValidIsoDateTime(value: string): boolean {
+  const dateOnly = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  const isoTimestamp = value.match(
+    /^(\\d{4})-(\\d{2})-(\\d{2})T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,9})?)?(?:Z|[+-]\\d{2}:\\d{2})$/,
+  );
+  const match = dateOnly ?? isoTimestamp;
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const calendarDate = new Date(Date.UTC(year, month - 1, day));
+  if (
+    calendarDate.getUTCFullYear() !== year ||
+    calendarDate.getUTCMonth() !== month - 1 ||
+    calendarDate.getUTCDate() !== day
+  ) {
+    return false;
+  }
+
+  return Number.isFinite(Date.parse(value));
+}
+
 /**
  * Runtime validation boundary for imported/user-provided transaction data.
  * It reports issues instead of dropping malformed rows or filling defaults.
@@ -81,10 +104,16 @@ export function validateTransaction(input: unknown): TransactionValidation {
     (typeof instrumentId !== "string" || !instrumentId.trim())
   ) {
     addIssue("instrumentId", "Instrument identity is required for this transaction kind.");
+  } else if (
+    !["buy", "sell", "opening-balance"].includes(kind) &&
+    instrumentId !== undefined &&
+    (typeof instrumentId !== "string" || !instrumentId.trim())
+  ) {
+    addIssue("instrumentId", "If supplied, instrument identity must be a non-empty string.");
   }
 
-  if (typeof input.occurredAt !== "string" || !input.occurredAt.trim() || !Number.isFinite(Date.parse(input.occurredAt))) {
-    addIssue("occurredAt", "A valid transaction date/time is required.");
+  if (typeof input.occurredAt !== "string" || !input.occurredAt.trim() || !isValidIsoDateTime(input.occurredAt)) {
+    addIssue("occurredAt", "A valid ISO date or timezone-qualified ISO timestamp is required; ambiguous locale dates are not accepted.");
   }
 
   if (typeof input.currency !== "string" || !/^[A-Z]{3}$/.test(input.currency)) {
