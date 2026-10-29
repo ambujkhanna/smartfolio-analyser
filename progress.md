@@ -9,55 +9,54 @@
 
 ## Current status
 
-**Current phase/task:** Phase 3, Task 3.1 — Build a safe generic CSV pipeline  
-**Overall status:** Core domain and accounting foundations are now present in source: quote validation, transaction validation, position valuation, FIFO ledger, and portfolio P&L/recovery calculations. The work is test-first in source, but runtime verification remains outstanding; do not treat the implementation as validated until CI succeeds.  
-**Last verified repository state:** The implementation branch includes the Next.js shell, lint/test/CI configuration, quote and transaction domain models, valuation engine, FIFO ledger, P&L aggregation, accounting rules, and deterministic tests. Source files have been read back from GitHub after commits.  
-**Checks actually run:** GitHub Actions workflow runs have started, but recent runs were pending/cancelled due to rapid successive pushes; no successful full run is confirmed. No local npm command has run.  
+**Current phase/task:** Phase 3, Task 3.2 — Select and implement the first broker adapter only when a sanitized sample is available  
+**Overall status:** App shell, domain validation, FIFO ledger, P&L/recovery calculations, accounting rules, and generic CSV parsing are implemented as source code with tests. Runtime verification is still pending; no passing lint/test/build run has been confirmed.  
+**Last verified repository state:** Branch includes `src/importers/genericCsv.ts` and tests, PapaParse dependency declaration, FIFO ledger, P&L engine, domain validators, and documentation. New source files have been committed and fetched back from GitHub.  
+**Checks actually run:** GitHub Actions runs are being triggered by pushes, but rapid commits have caused earlier runs to be cancelled. The latest complete lint/test/build result is not yet confirmed. No local npm commands have run.  
 **Lockfile:** No package-lock.json is committed.  
-**Data provider/import status:** No real provider or broker-specific importer is implemented. No fake market prices are displayed.
+**Provider status:** No live quote/NAV provider has been selected or implemented. No real portfolio values are shown in the UI.
 
 ## Completed
 
-- [x] Repository inventory and small-task plan.
-- [x] **Task 0.2:** Added truthful Next.js app shell.
+- [x] Repository inventory and task-level implementation plan.
+- [x] **Task 0.2:** Added truthful Next.js app shell; no fake holdings or prices.
 - [x] **Task 0.3 (configuration portion):** Added ESLint config, Vitest config, formatter tests, and GitHub Actions workflow.
-- [x] **Task 1.1:** Added quote/provenance type and validation for missing, invalid, stale, mismatched, and available quote states.
-- [x] **Task 1.2:** Added canonical transaction types and field-level runtime validation for buy, sell, opening balance, fee, and dividend rows.
-- [x] **Task 1.3:** Added pure position valuation using explicit quote results; missing/stale quote does not become zero; missing cost basis leaves unrealized P&L unavailable.
-- [x] **Task 2.1:** Added docs/ACCOUNTING_RULES.md with FIFO, fee/dividend scope, lifecycle formulas, incomplete-history behavior, and hand-calculated examples.
-- [x] **Task 2.2:** Added chronological FIFO ledger with partial/full sales, sell/re-buy cycles, opening positions, charges, standalone fees/dividends, duplicate-ID rejection, oversell errors, and ambiguity warnings.
-- [x] **Task 2.3 (implementation portion):** Added portfolio P&L aggregation for realized/unrealized P&L, market value, economic P&L, position break-even, and lifecycle recovery.
-- [x] Portfolio calculations require validated valuations and keep dependent metrics unavailable when quotes, cost basis, or complete history are missing.
-- [x] Added tests for quote validation, transaction validation, position valuation, FIFO lots, sell/re-buy, lifecycle reconciliation, missing quote, and unknown opening basis.
-- [x] Added overflow guards to portfolio market value and unrealized P&L aggregation.
-- [x] Updated plan.md and this progress tracker.
+- [x] **Task 1.1:** Added quote/provenance model and validation for missing, invalid, stale, mismatched, and available quote states.
+- [x] **Task 1.2:** Added canonical transaction model and runtime validation for buy, sell, opening balance, fee, and dividend rows.
+- [x] **Task 1.3:** Added pure position valuation; missing/stale quote does not become zero, and unknown cost basis keeps unrealized P&L unavailable.
+- [x] **Task 2.1:** Added docs/ACCOUNTING_RULES.md defining initial FIFO conventions, fee/dividend scope, economic P&L, break-even/recovery, and hand-calculated examples.
+- [x] **Task 2.2:** Added FIFO ledger for buy/opening/sell/fee/dividend rows, partial sells and re-entry; duplicate IDs and oversells are reported, unknown cost basis remains unknown.
+- [x] **Task 2.3 (implementation portion):** Added portfolio P&L aggregation, economic P&L reconciliation, position break-even, and lifecycle recovery price.
+- [x] **Task 3.1 (implementation portion):** Added generic CSV parsing using PapaParse. Raw rows, row numbers, parse errors, invalid fields, unsupported transaction types, duplicate headers, and unresolved symbol-only instruments remain visible.
+- [x] CSV import only emits canonical transactions for rows that pass validation and have a stable instrument identity.
+- [x] Added deterministic test files for money formatting, quote validation, transaction validation, valuation, FIFO ledger, P&L reconciliation, and generic CSV edge cases.
+- [x] Updated plan.md and progress.md after the implementation increments.
 
 ## In progress
 
-- [ ] **Task 3.1:** Build generic CSV parsing/validation that preserves every row and reports malformed/unsupported records.
-- [ ] **Task 0.3 verification:** Obtain a successful full CI run and commit a package lockfile.
-- [ ] Expand accounting tests after a real run exposes any type/test/lint issues.
+- [ ] **Task 3.2:** Broker-specific adapter. This requires a sanitized representative broker export; no sample is present in the repository, so no broker format is guessed.
+- [ ] **Quality verification:** Observe a successful lint/test/build run on the latest branch head and fix failures.
+- [ ] Commit an npm lockfile from a real package-manager environment.
 
 ## Not yet implemented
 
-- [ ] Generic CSV import preview and row-level diagnostics.
-- [ ] Broker-specific adapters, duplicate-import identity, holdings/opening-position import, and reconciliation.
-- [ ] Instrument master/resolver and alias handling.
-- [ ] Provider evaluation, equity/ETF quotes, mutual-fund NAVs, cache, and provenance integration.
-- [ ] Connect import and calculation engine to the UI; show holdings and data-quality warnings.
+- [ ] Broker-specific mapping, idempotent repeat import across renamed files, opening-position import, and holdings reconciliation.
+- [ ] Instrument master/resolver, alias/symbol-change handling, and NSE/BSE quote identity.
+- [ ] Provider evaluation, equity/ETF quote adapter, mutual-fund NAV adapter, cache, and quote freshness/provenance integration.
+- [ ] Connect import/calculation modules to the UI; show import preview, holdings, P&L, and data-quality warnings.
 - [ ] Security review, acceptance verification, preview deployment, and release review.
 
 ## Blockers / decisions
 
-- GitHub Actions has produced pending/cancelled runs during rapid commits, but no successful full quality run is confirmed. Wait for a run on the latest branch head and fix reported issues.
-- No package-lock.json is committed; dependency pinning remains outstanding.
-- No representative broker export is present. Build generic CSV validation first; do not invent broker-specific formats.
-- Provider selection must follow official terms, coverage, quotas, freshness, and cost review.
-- Initial FIFO is a transparent portfolio-performance convention, not a tax-grade claim. Corporate actions and FX remain unsupported until separately designed.
+- **Broker sample:** A sanitized tradebook/holdings export is needed before implementing an accurate broker-specific adapter. Do not upload credentials, OTPs, account numbers, or other secrets.
+- **CI/runtime:** Recent GitHub Actions runs were pending/cancelled during rapid pushes; no successful full run is confirmed. Let the latest run finish and fix any issues.
+- **Lockfile:** No package-lock.json is committed.
+- **Market data:** Provider choice must follow current official terms, coverage, quotas, freshness, and cost review.
+- **Scope:** Initial FIFO is a portfolio-performance convention, not a tax-grade claim. Corporate actions and FX remain unsupported until separately designed.
 
 ## Next single task
 
-**Task 3.1 — Safe generic CSV pipeline.** Parse all rows without silent loss, preserve filename/row number/raw values, validate required fields, and report unsupported rows. Keep it independent of the FIFO engine; only validated canonical transactions should reach calculations. In parallel, obtain a successful CI run and address any failures before calling the implementation verified.
+**Task 3.2 — Broker adapter decision.** Do not invent a broker-specific CSV schema. If a sanitized sample export becomes available in the repo, implement its adapter and fixtures. Until then, continue provider/instrument research and improve generic importer tests. In parallel, obtain a successful CI run before treating current code as verified.
 
 ## Task history
 
@@ -65,13 +64,14 @@
 |---|---|---|---|
 | 2026-10-29 | Task 0.1 — Repository inventory | Confirmed repository structure and package scripts | Git tree/package.json fetched |
 | 2026-10-29 | Task 0.2 — App shell | Added layout, landing page, styles, ignore rules | Files fetched; build not run |
-| 2026-10-29 | Task 0.3 — Quality foundation (partial) | Added ESLint, Vitest, formatter test, CI workflow | Runs pending/cancelled during rapid pushes; no pass confirmed |
-| 2026-10-29 | Task 1.1 — Quote contract | Added quote/provenance model and validation tests | Files fetched; tests not executed locally |
-| 2026-10-29 | Task 1.2 — Canonical transactions | Added transaction model, validator, and tests | Files fetched; tests not executed locally |
-| 2026-10-29 | Task 1.3 — Position valuation | Added pure mark-to-market boundary and tests | Files fetched; tests not executed locally |
-| 2026-10-29 | Task 2.1 — Accounting rules | Added FIFO and lifecycle formulas plus hand-calculated examples | Document committed |
-| 2026-10-29 | Task 2.2 — FIFO ledger | Added FIFO lot processing, cash-flow tracking, and structured errors/warnings | Source/test files committed; tests not yet verified |
-| 2026-10-29 | Task 2.3 — P&L and recovery | Added P&L aggregation, economic reconciliation, and break-even/recovery metrics | Source/test files committed; tests not yet verified |
+| 2026-10-29 | Task 0.3 — Quality foundation (partial) | Added ESLint, Vitest, formatter test, CI workflow | Workflow runs triggered; no successful run confirmed |
+| 2026-10-29 | Task 1.1 — Quote contract | Added quote/provenance model and tests | Files fetched; tests not locally executed |
+| 2026-10-29 | Task 1.2 — Canonical transactions | Added transaction model, validator, and tests | Files fetched; tests not locally executed |
+| 2026-10-29 | Task 1.3 — Position valuation | Added pure valuation boundary and tests | Files fetched; tests not locally executed |
+| 2026-10-29 | Task 2.1 — Accounting rules | Added FIFO/lifecycle formulas and hand-calculated examples | Document committed |
+| 2026-10-29 | Task 2.2 — FIFO ledger | Added lot processing, re-entry, cash flows, and warnings/errors | Source/test files committed; tests not yet verified |
+| 2026-10-29 | Task 2.3 — P&L/recovery | Added portfolio metrics and reconciliation tests | Source/test files committed; tests not yet verified |
+| 2026-10-29 | Task 3.1 — Generic CSV | Added parser, row-preserving validation, and edge-case tests | Source/test files committed; tests not yet verified |
 
 ## Per-task update template
 
