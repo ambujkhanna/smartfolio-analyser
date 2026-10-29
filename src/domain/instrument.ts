@@ -115,7 +115,6 @@ export function resolveInstrument(
     return { status: "unresolved", reason: "The supplied symbol and exchange combination was not found in the instrument master." };
   }
 
-  const symbol = normalize(reference.symbol);
   if (symbol) {
     const matches = candidates.filter((item) => normalize(item.symbol) === symbol);
     if (matches.length === 1) return { status: "resolved", instrument: matches[0], confidence: "medium", matchedBy: "unique-symbol" };
