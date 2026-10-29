@@ -52,9 +52,9 @@ function isNonNegativeFiniteNumber(value: unknown): value is number {
 }
 
 function isValidIsoDateTime(value: string): boolean {
-  const dateOnly = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const isoTimestamp = value.match(
-    /^(\\d{4})-(\\d{2})-(\\d{2})T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,9})?)?(?:Z|[+-]\\d{2}:\\d{2})$/,
+    /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/,
   );
   const match = dateOnly ?? isoTimestamp;
   if (!match) return false;
