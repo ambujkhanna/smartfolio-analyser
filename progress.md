@@ -62,7 +62,7 @@
 
 - **Live equity/ETF data:** The Upstox adapter needs a securely configured server-side Analytics Token and verified provider instrument keys. Never paste credentials into chat or commit them.
 - **Instrument identity:** A trusted instrument master is needed before mapping symbol/ISIN to provider keys.
-- **Broker adapter:** No sanitized tradebook/holdings sample is present. Do not invent a broker-specific format.
+- **Broker adapter:** Awaiting sanitized Zerodha Tradebook CSV and Holdings CSV samples. Do not invent broker-specific columns or commit raw account exports.
 - **Security:** Do not expose a public open proxy backed by a provider token. Add caching, bounded requests, and access controls before exposing live quote endpoints.
 - **Accounting scope:** FIFO is a portfolio-performance convention, not a tax-grade claim. Corporate actions and FX remain unsupported until explicitly modeled.
 
@@ -97,3 +97,4 @@
 
 
 | 2026-10-29 | Tradebook CSV compatibility fix | Infer INR only when currency is blank/absent and exchange explicitly identifies NSE/BSE; added regression tests including no-guessing for unknown exchange | GitHub Actions run [40820712734](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40820712734) passed lint, tests, and build; latest Vercel deployment was previously observed READY, but live quotes are not configured |
+| 2026-10-29 | Sample-driven importer plan | Prioritize real Zerodha Tradebook CSV and Holdings CSV, then positions report, mutual-fund statement, and other broker formats; require sanitized fixtures and no raw exports in Git | Awaiting user-uploaded samples; no broker-specific adapter marked complete yet |
