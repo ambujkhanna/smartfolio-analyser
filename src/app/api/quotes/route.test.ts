@@ -18,6 +18,7 @@ function request(body: string, authorization?: string, clientIp = "192.0.2.10"):
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe("POST /api/quotes access controls", () => {
