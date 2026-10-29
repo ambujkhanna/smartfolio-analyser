@@ -29,6 +29,7 @@
 - [x] **Task 2.3 (implementation portion):** Added portfolio P&L aggregation, economic P&L reconciliation, position break-even, and lifecycle recovery price.
 - [x] **Task 3.1 (implementation portion):** Added generic CSV parsing using PapaParse. Raw rows, row numbers, parse errors, invalid fields, unsupported transaction types, duplicate headers, and unresolved symbol-only instruments remain visible.
 - [x] **Task 4.1/4.2 (initial resolver):** Added stable instrument record/reference types and exact resolver states. Explicit IDs and exchange-qualified matches take precedence; ambiguous NSE/BSE matches remain unresolved; no fuzzy matching or unsafe fallback.
+- [x] **Task 5.1:** Reviewed official Upstox Market Quote V3/Analytics Token docs and AMFI NAV download docs; added docs/MARKET_DATA_PROVIDER_REVIEW.md with a free-first recommendation and freshness/credential constraints.
 - [x] CSV import only emits canonical transactions for rows that pass validation and have a stable instrument identity.
 - [x] Added deterministic test files for money formatting, quote validation, transaction validation, valuation, FIFO ledger, P&L reconciliation, and generic CSV edge cases.
 - [x] Updated plan.md and progress.md after the implementation increments.
@@ -75,6 +76,7 @@
 | 2026-10-29 | Task 2.3 — P&L/recovery | Added portfolio metrics and reconciliation tests | Source/test files committed; tests not yet verified |
 | 2026-10-29 | Task 3.1 — Generic CSV | Added PapaParse pipeline, row-preserving validation, unresolved symbol state, and edge-case tests | Source/test files committed; tests not yet verified |
 | 2026-10-29 | Task 4.1/4.2 — Instrument resolver | Added canonical instrument model, exact match rules, confidence levels, ambiguity states, and tests | Source/test files committed; tests not yet verified |
+| 2026-10-29 | Task 5.1 — Provider review | Reviewed official Upstox and AMFI documentation; documented free-first source split | Official docs reviewed; no live API calls made |
 
 ## Per-task update template
 
