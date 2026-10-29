@@ -173,6 +173,8 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
       "securityid",
       "providerinstrumentid",
       "instrumentkey",
+      "schemecode",
+      "amfischemecode",
     ]);
     const displaySymbol = valueAt(values, headers, ["symbol", "ticker", "tradingsymbol", "scrip", "security"]);
     const needsResolution = Boolean(kind && ["buy", "sell", "opening-balance"].includes(kind) && !explicitInstrumentId);
