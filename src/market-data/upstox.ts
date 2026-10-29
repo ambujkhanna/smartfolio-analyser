@@ -1,11 +1,6 @@
 import type { InstrumentRecord } from "../domain/instrument";
 import { validateQuote, type MarketQuote, type QuoteValidation } from "../domain/quote";
 
-interface UpstoxQuotePayload {
-  status?: unknown;
-  data?: unknown;
-}
-
 interface UpstoxQuoteRecord {
   instrument_token?: unknown;
   last_price?: unknown;
