@@ -81,11 +81,12 @@ This is an executable task plan. Complete one task at a time. After each task, u
 ## Phase 2 — Accounting specification and engine
 
 ### Task 2.1 — Document accounting conventions
-- [ ] Define realized P&L, unrealized P&L, economic P&L, position break-even, and lifecycle recovery price.
-- [ ] Choose and label the initial cost-allocation method; document limitations.
-- [ ] Define how brokerage/fees are allocated and prevent double counting.
-- [ ] Explicitly scope dividends, taxes, opening balances, and incomplete history.
-- [ ] Define behavior for zero quantity and closed lifecycle recovery.
+- [x] Define realized P&L, unrealized P&L, economic P&L, position break-even, and lifecycle recovery price.
+- [x] Choose and label FIFO as the initial lot-allocation method; document that this is not tax-grade reporting.
+- [x] Define trade-level versus standalone fees and prevent double counting.
+- [x] Scope dividends, taxes, opening balances, and incomplete history.
+- [x] Define behavior for zero quantity and closed lifecycle recovery.
+- [x] Add hand-calculated sell/re-buy, FIFO partial sale, missing quote, and unknown opening-cost examples.
 
 ### Task 2.2 — Implement chronological ledger and position lots
 - [ ] Validate required transaction fields and stable ordering.
