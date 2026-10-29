@@ -1,6 +1,6 @@
 # Smartfolio Analyser
 
-Smartfolio Analyser is being built to help Indian investors understand portfolio performance across complete investment lifecycles—including partial sales, closed positions, and later re-entry into the same instrument.
+Smartfolio Analyser is being built to help Indian investors understand portfolio performance across complete investment lifecycles—including partial sales, closed positions, and later re-entry into the same instrument. The current branch supports browser-side CSV preview and a calculation preview from accepted transaction rows; live quotes are not yet connected to the UI.
 
 - Repository: https://github.com/ambujkhanna/smartfolio-analyser
 - Implementation branch: `feat/reliable-pnl-foundation`
@@ -9,7 +9,7 @@ Smartfolio Analyser is being built to help Indian investors understand portfolio
 - Accounting rules: [docs/ACCOUNTING_RULES.md](docs/ACCOUNTING_RULES.md)
 - Market-data provider review: [docs/MARKET_DATA_PROVIDER_REVIEW.md](docs/MARKET_DATA_PROVIDER_REVIEW.md)
 
-> **Status and accuracy notice:** The application currently provides a browser-side CSV preview and row validation. The accounting and market-data modules are being built and tested, but they are not yet connected into a complete portfolio dashboard. Do not use this project for financial, tax, or trading decisions. No sample market prices or fallback prices are used by the current code.
+> **Status and accuracy notice:** The application provides browser-side CSV preview and a calculation preview using accepted rows. Live quotes are not connected, so open-position market value and dependent P&L can remain unavailable. The product is still under development; do not use it for financial, tax, or trading decisions. No sample market prices or fallback prices are used by the current code.
 
 ## Product goal
 
@@ -29,6 +29,7 @@ The current branch contains these modules:
 
 - **Next.js app shell:** Landing page and application status notice.
 - **CSV preview:** Client-side CSV parsing with row preservation, accepted/rejected counts, source row details, and validation issues. Files are limited to 5 MB in the preview UI and are not uploaded to a server by this step.
+- **P&L calculation preview:** Calculate accepted transaction rows locally and display realized P&L, open quantity, remaining cost basis, position break-even, and lifecycle recovery. Missing live quotes leave market value, unrealized P&L, and dependent economic P&L unavailable.
 - **Canonical transaction validation:** Buy, sell, opening balance, fee, and dividend types, with field-level validation and source filename/row metadata.
 - **Quote validation:** Explicit available, unavailable, invalid, mismatched, and stale states; validates positive finite price, currency, instrument identity, source, and timestamps.
 - **Instrument resolution:** Exact canonical-ID, ISIN, exchange, and symbol matching. Ambiguous matches remain unresolved; no fuzzy matching.
@@ -37,7 +38,7 @@ The current branch contains these modules:
 - **Market-data adapters:** Upstox Market Quote V3 adapter and AMFI NAV parsing/resolution code with fixed-response test fixtures.
 - **Quality tooling:** ESLint, Vitest, and a GitHub Actions lint/test/build workflow.
 
-**Important gaps:** The modules are not yet fully connected into the UI; there is no broker-specific adapter, no production instrument master, no secure quote endpoint/cache, no live provider credential configured, no persistent portfolio storage, and no holdings reconciliation UI. The AMFI parser has not yet been verified against a captured current live feed. GitHub Actions has passed lint, all 70 unit tests, and the production build on the current implementation before the lockfile was committed. The generated npm lockfile is now committed; a clean `npm ci` run is being verified. See [progress.md](progress.md) for the latest verified status.
+**Important gaps:** The calculation preview is not a complete portfolio dashboard. There is no broker-specific adapter, production instrument master, live quote endpoint/cache, configured live provider credential, persistent portfolio storage, or broker holdings reconciliation UI. The AMFI parser has not yet been verified against a captured current live feed. See [progress.md](progress.md) for the latest verified status.
 
 ## Accounting rules
 
@@ -87,7 +88,7 @@ npm test
 npm run build
 ```
 
-The GitHub Actions workflow runs the same checks. The latest completed run passed lint, all 70 tests, and the production build. CI generated and committed `package-lock.json`; a subsequent run using `npm ci` is being used to verify the lockfile path.
+The GitHub Actions workflow runs the same checks. The latest run passed a clean `npm ci`, lint, all 70 unit tests, and the production build. See the latest run linked in [progress.md](progress.md).
 
 ## Generic CSV preview format
 
