@@ -9,7 +9,7 @@
 
 ## Current status
 
-**Current phase/task:** Phase 4, Task 4.1 — Create stable instrument identity model  
+**Current phase/task:** Phase 5, Task 5.1 — Evaluate market-data providers  
 **Overall status:** App shell, domain validation, FIFO ledger, P&L/recovery calculations, accounting rules, and generic CSV parsing are implemented as source code with tests. Runtime verification is still pending; no passing lint/test/build run has been confirmed.  
 **Last verified repository state:** Branch includes `src/importers/genericCsv.ts` and tests, PapaParse dependency declaration, FIFO ledger, P&L engine, domain validators, and documentation. New source files have been committed and fetched back from GitHub.  
 **Checks actually run:** GitHub Actions runs are being triggered by pushes, but rapid commits have caused earlier runs to be cancelled. The latest complete lint/test/build result is not yet confirmed. No local npm commands have run.  
@@ -28,6 +28,7 @@
 - [x] **Task 2.2:** Added FIFO ledger for buy/opening/sell/fee/dividend rows, partial sells and re-entry; duplicate IDs and oversells are reported, unknown cost basis remains unknown.
 - [x] **Task 2.3 (implementation portion):** Added portfolio P&L aggregation, economic P&L reconciliation, position break-even, and lifecycle recovery price.
 - [x] **Task 3.1 (implementation portion):** Added generic CSV parsing using PapaParse. Raw rows, row numbers, parse errors, invalid fields, unsupported transaction types, duplicate headers, and unresolved symbol-only instruments remain visible.
+- [x] **Task 4.1/4.2 (initial resolver):** Added stable instrument record/reference types and exact resolver states. Explicit IDs and exchange-qualified matches take precedence; ambiguous NSE/BSE matches remain unresolved; no fuzzy matching or unsafe fallback.
 - [x] CSV import only emits canonical transactions for rows that pass validation and have a stable instrument identity.
 - [x] Added deterministic test files for money formatting, quote validation, transaction validation, valuation, FIFO ledger, P&L reconciliation, and generic CSV edge cases.
 - [x] Updated plan.md and progress.md after the implementation increments.
@@ -73,6 +74,7 @@
 | 2026-10-29 | Task 2.2 — FIFO ledger | Added lot processing, re-entry, cash flows, and warnings/errors | Source/test files committed; tests not yet verified |
 | 2026-10-29 | Task 2.3 — P&L/recovery | Added portfolio metrics and reconciliation tests | Source/test files committed; tests not yet verified |
 | 2026-10-29 | Task 3.1 — Generic CSV | Added PapaParse pipeline, row-preserving validation, unresolved symbol state, and edge-case tests | Source/test files committed; tests not yet verified |
+| 2026-10-29 | Task 4.1/4.2 — Instrument resolver | Added canonical instrument model, exact match rules, confidence levels, ambiguity states, and tests | Source/test files committed; tests not yet verified |
 
 ## Per-task update template
 
