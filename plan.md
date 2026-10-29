@@ -61,11 +61,12 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [ ] Execute quote tests in CI/local runtime and fix any failures.
 
 ### Task 1.2 — Define canonical transaction and result types
-- [ ] Model buys, sells, fees/charges, dividends, and opening balances explicitly where supported.
-- [ ] Preserve transaction date/time, stable ID when available, exchange, currency, and import source/row.
-- [ ] Represent incomplete history and unresolved instruments with structured warnings.
-- [ ] Make metrics dependent on unavailable inputs nullable or typed as unavailable.
-- [ ] Add type-level and runtime validation tests.
+- [x] Model buys, sells, fees/charges, dividends, and opening balances explicitly in the canonical transaction type.
+- [x] Preserve transaction date/time, transaction ID, instrument identity, currency, and import source/row.
+- [x] Allow opening balances with missing original cost basis so incompleteness can be represented without guessing.
+- [x] Add runtime validation that returns structured field-level issues rather than dropping malformed rows.
+- [x] Add tests for valid trades, malformed inputs, quantities/prices, opening cost basis, fees, dates, and source metadata.
+- [ ] Execute transaction validation tests in CI/local runtime and fix any failures.
 
 ### Task 1.3 — Implement a safe first calculation boundary
 - [ ] Create a pure calculation API that receives normalized transactions and validated quotes as explicit inputs.
