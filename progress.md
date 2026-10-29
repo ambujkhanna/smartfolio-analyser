@@ -9,7 +9,7 @@
 
 ## Current status
 
-**Current phase/task:** Quote/NAV end-to-end readiness and UI quality — market-data route and browser quote-fetch flow are wired; verify deployment configuration and improve automated UI coverage  
+**Current phase/task:** Sample-driven broker importer — start with Zerodha Tradebook, then reconcile Zerodha Holdings; add adapters only from observed sanitized headers and rows  
 **Overall status:** The app includes browser-side CSV preview, local FIFO/P&L calculation, instrument resolution, a protected quote endpoint, quote provenance UI, and a browser action that requests quotes and recalculates open-position valuations. The endpoint supports Upstox equity/ETF quotes and AMFI mutual-fund NAVs. Live provider calls remain unverified until server secrets are configured and a real authenticated response is tested.  
 **Last fully green code checks:** GitHub Actions run [40820712734](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40820712734) completed successfully on 29 October 2026 for the INR inference regression tests. It verified the branch code at SHA `1016557c104c723a18d3a120daa7c840e0a1ba5a` with clean install, lint, unit tests, and production build. The latest docs-only commit `788676701e6cc8ac8f94cc6fd78a0e114a11aa1d` came afterward; no claim is made that CI tested live provider calls.  
 **Lockfile:** `package-lock.json` is committed. The quality workflow uses `npm ci` when the lockfile exists. Documentation-only commits no longer trigger redundant CI runs.  
@@ -49,7 +49,7 @@
 
 ## Not yet implemented
 
-- [ ] Broker-specific CSV adapters and repeat-import idempotency based on a real sanitized broker sample.
+- [ ] Broker-specific CSV adapters and repeat-import idempotency based on a real sanitized broker sample. **Next:** inspect the uploaded Zerodha Tradebook CSV, record its actual schema, build a dedicated adapter with fixtures, then reconcile against Holdings.
 - [ ] Production instrument master data and symbol-change/alias coverage.
 - [x] Protected server-side quote/NAV endpoint with cache, bounded request sizes, and access controls (best-effort in-memory limits; shared limits remain a production hardening item).
 - [x] Live quote/NAV retrieval connected to the import-review dashboard; live provider verification remains outstanding.
@@ -97,4 +97,4 @@
 
 
 | 2026-10-29 | Tradebook CSV compatibility fix | Infer INR only when currency is blank/absent and exchange explicitly identifies NSE/BSE; added regression tests including no-guessing for unknown exchange | GitHub Actions run [40820712734](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40820712734) passed lint, tests, and build; latest Vercel deployment was previously observed READY, but live quotes are not configured |
-| 2026-10-29 | Sample-driven importer plan | Prioritize real Zerodha Tradebook CSV and Holdings CSV, then positions report, mutual-fund statement, and other broker formats; require sanitized fixtures and no raw exports in Git | Awaiting user-uploaded samples; no broker-specific adapter marked complete yet |
+| 2026-10-29 | Sample-driven importer plan | Prioritize real Zerodha Tradebook CSV and Holdings CSV, then positions report, dividends, mutual-fund statement, and other broker formats; require sanitized fixtures and no raw exports in Git | Awaiting user-uploaded samples; no broker-specific adapter marked complete yet |
