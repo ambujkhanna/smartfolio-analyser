@@ -58,6 +58,7 @@ describe("fetchUpstoxQuotes", () => {
       expect(result[0].result.quote.price).toBe(125.5);
       expect(result[0].result.quote.observedAt).toBe(new Date(nowMs - 60_000).toISOString());
       expect(result[0].result.quote.retrievedAt).toBe(new Date(nowMs).toISOString());
+      expect(result[0].result.quote.providerTimestamp).toBe(new Date(nowMs).toISOString());
       expect(result[0].result.quote.providerInstrumentId).toBe(instrument.providerInstrumentId);
     }
   });
