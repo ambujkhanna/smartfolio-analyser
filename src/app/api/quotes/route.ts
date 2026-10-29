@@ -1,8 +1,8 @@
-import { resolveInstrument, type AssetType, type Exchange, type InstrumentReference } from "../../../../domain/instrument";
-import { loadUpstoxInstrumentMaster } from "../../../../market-data/upstoxInstrumentMaster";
-import { isValidAccessKey } from "../../../../market-data/accessControl";
-import { fetchUpstoxQuotes } from "../../../../market-data/upstox";
-import type { QuoteValidation } from "../../../../domain/quote";
+import { resolveInstrument, type AssetType, type Exchange, type InstrumentReference } from "../../../domain/instrument";
+import { loadUpstoxInstrumentMaster } from "../../../market-data/upstoxInstrumentMaster";
+import { isValidAccessKey } from "../../../market-data/accessControl";
+import { fetchUpstoxQuotes } from "../../../market-data/upstox";
+import type { QuoteValidation } from "../../../domain/quote";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -182,7 +182,7 @@ export async function POST(request: Request): Promise<Response> {
   const outputByIndex = new Map<number, { instrumentId: string; result: QuoteValidation }>();
   const resolvedGroups = new Map<
     string,
-    Array<{ index: number; reference: InstrumentReference; instrument: import("../../../../domain/instrument").InstrumentRecord }>
+    Array<{ index: number; reference: InstrumentReference; instrument: import("../../../domain/instrument").InstrumentRecord }>
   >();
 
   (references as InstrumentReference[]).forEach((reference, index) => {
@@ -207,7 +207,7 @@ export async function POST(request: Request): Promise<Response> {
   const requests: Array<{
     outputInstrumentId: string;
     providerInstrumentId: string;
-    instrument: import("../../../../domain/instrument").InstrumentRecord;
+    instrument: import("../../../domain/instrument").InstrumentRecord;
     indices: number[];
   }> = [];
 
