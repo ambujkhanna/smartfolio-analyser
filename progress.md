@@ -9,7 +9,7 @@
 
 ## Current status
 
-**Current phase/task:** Phase 5, Task 5.3 — Connect AMFI NAV feed for mutual funds  
+**Current phase/task:** Import compatibility fix — infer INR only for NSE/BSE tradebook rows that omit currency  
 **Overall status:** The app includes browser-side CSV preview, local P&L calculation preview, instrument resolution, a protected Upstox quote endpoint, quote provenance UI, and quote-to-position valuation mapping. Live equity quotes require server secrets and have not been verified against the real provider. Mutual-fund NAV parsing/resolution is implemented, but the AMFI feed loader and quote-route integration are still pending.  
 **Last fully green code checks:** GitHub Actions run [40817011727](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40817011727) passed clean `npm ci`, ESLint, 77 unit tests across 11 files, and production build before quote endpoint wiring. The first quote-endpoint run failed test collection due to route import paths; fixed. A later run passed lint and 82 tests but exposed an optional provider-key type, which was fixed. The following run passed lint and 82 tests but the build found a UI access to a non-existent `reason` field on the stale-quote variant. The UI now displays stale age and last-trade time from the actual quote metadata; a new full run is pending. A separate pure quote-to-position adapter is also implemented and tested.  
 **Lockfile:** `package-lock.json` is committed. The quality workflow uses `npm ci` when the lockfile exists. Documentation-only commits no longer trigger redundant CI runs.  
@@ -68,7 +68,7 @@
 
 ## Next single task
 
-**Add a trusted instrument-master loader for Upstox.** Inspect the official instrument-master format, parse ISIN/symbol/exchange/provider key into the canonical instrument model, and test duplicates/ambiguity without network-dependent unit tests. This enables safe provider-key resolution before wiring live quotes. Keep the UI explicit that market values are unavailable until a valid quote is supplied.
+**Verify the tradebook currency fix in CI and deployment.** Confirm the new importer tests pass, inspect the latest Vercel build, and ask the user to re-upload the same CSV. If additional row-level issues remain, use the exact displayed errors to add a broker-specific adapter rather than relaxing validation globally. Keep the UI explicit that market values are unavailable until a valid quote is supplied.
 
 ## Task history
 
@@ -94,3 +94,6 @@
 - **Known gaps / blockers:**
 - **Next single task:**
 - **Commit / PR:**
+
+
+| 2026-10-29 | Tradebook CSV compatibility fix | Infer INR only when currency is blank/absent and exchange explicitly identifies NSE/BSE; added regression tests including no-guessing for unknown exchange | CI/deployment verification pending |
