@@ -8,8 +8,66 @@ Smartfolio Analyser is being built to help Indian investors understand portfolio
 - Live progress: [progress.md](progress.md)
 - Accounting rules: [docs/ACCOUNTING_RULES.md](docs/ACCOUNTING_RULES.md)
 - Market-data provider review: [docs/MARKET_DATA_PROVIDER_REVIEW.md](docs/MARKET_DATA_PROVIDER_REVIEW.md)
+- Zerodha connector setup and troubleshooting: [docs/ZERODHA_CONNECT.md](docs/ZERODHA_CONNECT.md)
 
 > **Status and accuracy notice:** The application provides browser-side CSV preview and a calculation preview using accepted rows. Live quotes are not connected, so open-position market value and dependent P&L can remain unavailable. The product is still under development; do not use it for financial, tax, or trading decisions. No sample market prices or fallback prices are used by the current code.
+
+## Quick reference: deployment, environments and accounts
+
+No secret values belong in this file or anywhere in Git. This section lists *where* things are configured, not their values.
+
+### Links
+
+| What | Where |
+|---|---|
+| Vercel project | https://vercel.com/ambujkhannas-projects/smartfolio-analyser |
+| Vercel environment variables | https://vercel.com/ambujkhannas-projects/smartfolio-analyser/settings/environment-variables |
+| **Preview (testing) — stable branch alias** for `feat/reliable-pnl-foundation` | https://smartfolio-analyser-git-feat-relia-b98862-ambujkhannas-projects.vercel.app (behind Vercel login) |
+| Production alias | https://smartfolio-analyser.vercel.app — ⚠️ publicly reachable and still serves an **early feature-branch build**; not the current app. `main` maps to Production but holds no app code yet |
+| GitHub Actions (lint, tests, build) | https://github.com/ambujkhanna/smartfolio-analyser/actions |
+| Kite Connect developer console (Zerodha app, redirect URL) | https://developers.kite.trade/ |
+| Upstox developer apps (Analytics Token) | https://account.upstox.com/developer/apps |
+
+Other branches (for example `claude/*` work branches) get their own Vercel preview alias of the form `smartfolio-analyser-git-<branch>-ambujkhannas-projects.vercel.app`. Zerodha login only works on the `feat/reliable-pnl-foundation` alias, because that is the registered redirect URL.
+
+### Which build am I looking at?
+
+The page footer shows `Build <commit> · <environment>`, and `/api/version` returns the commit, branch and environment as JSON. Compare it with the latest commit on the branch. If it is older (the alias has twice been stuck on `390f26a`), open the Vercel project → Deployments and promote the **newest** deployment; do not use **Redeploy** on an older entry.
+
+### Environment variables
+
+All are set in Vercel, **Preview only** until a production release is approved. Copy [.env.example](.env.example) to `.env.local` for local development.
+
+| Variable | Purpose | Vercel type | Where the value comes from |
+|---|---|---|---|
+| `KITE_API_KEY` | Zerodha Kite Connect app key | Secret | Kite developer console (Personal — Free app) |
+| `KITE_API_SECRET` | Zerodha Kite Connect app secret | Secret | Kite developer console |
+| `KITE_REDIRECT_URL` | OAuth callback; must match the Kite console exactly | Plain config | `https://smartfolio-analyser-git-feat-relia-b98862-ambujkhannas-projects.vercel.app/api/zerodha/callback` |
+| `KITE_SESSION_ENCRYPTION_KEY` | Encrypts the Kite session cookie (AES-256-GCM) | Secret | Generate: `openssl rand -base64 32` |
+| `SMARTFOLIO_ACCESS_KEY` | Protects `/api/quotes`; entered in the app UI to fetch quotes | Secret | Generate (≥32 chars), e.g. PowerShell `[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` |
+| `UPSTOX_ANALYTICS_TOKEN` | Equity/ETF quotes (Upstox Market Quote V3) | Secret | Upstox developer apps → Analytics tab; valid ~1 year, read-only |
+
+AMFI mutual-fund NAVs need no credentials. Vercel supplies `VERCEL_GIT_COMMIT_SHA`, `VERCEL_GIT_COMMIT_REF` and `VERCEL_ENV` automatically (used only for the build label).
+
+### Accounts and costs
+
+| Service | Used for | Plan / cost |
+|---|---|---|
+| Vercel | Hosting, Preview deployments | Linked to this GitHub repo |
+| Zerodha Kite Connect | Holdings, positions, current-day orders/trades (read-only) | Personal — Free. No market data. IP whitelist not needed (no order placement) |
+| Upstox | Live equity/ETF quotes via Analytics Token | API free; account maintenance free in year 1, then about ₹300 + GST/year |
+| AMFI | Mutual-fund NAVs | Free public feed |
+
+Kite's paid plan (₹500/month) was deliberately not taken: it adds market prices, not historical trades, and its data may not be shown on external platforms. See [docs/MARKET_DATA_PROVIDER_REVIEW.md](docs/MARKET_DATA_PROVIDER_REVIEW.md).
+
+### Branches
+
+| Branch | Role |
+|---|---|
+| `main` | Production target; currently README only. Merge only after review |
+| `feat/reliable-pnl-foundation` | Main implementation branch (Preview alias above, Zerodha redirect registered here) |
+| `docs/project-plan-and-progress` | Early docs (PR #1); superseded by the docs on the implementation branch |
+| `claude/*` | Work branches from Claude Code sessions, based on the implementation branch |
 
 ## Product goal
 
