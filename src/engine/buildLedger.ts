@@ -74,6 +74,24 @@ function isDateOnly(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+/** Fields that change accounting results; source file/row are deliberately excluded. */
+function economicSignature(transaction: CanonicalTransaction): string {
+  return JSON.stringify([
+    transaction.kind,
+    transaction.instrumentId ?? null,
+    Date.parse(transaction.occurredAt),
+    transaction.currency,
+    transaction.quantity ?? null,
+    transaction.unitPrice ?? null,
+    transaction.amount ?? null,
+    transaction.charges ?? null,
+  ]);
+}
+
+function describeSources(group: CanonicalTransaction[]): string {
+  return group.map((transaction) => `${transaction.source.fileName} row ${transaction.source.rowNumber}`).join(", ");
+}
+
 function stableTransactionSort(a: CanonicalTransaction, b: CanonicalTransaction): number {
   const timeDifference = Date.parse(a.occurredAt) - Date.parse(b.occurredAt);
   if (timeDifference !== 0) return timeDifference;
@@ -119,21 +137,34 @@ export function buildLedger(input: unknown[]): LedgerResult {
     ids.set(transaction.transactionId, group);
   }
 
-  const duplicateIds = new Set(
-    [...ids.entries()].filter(([, group]) => group.length > 1).map(([id]) => id),
-  );
-  for (const id of duplicateIds) {
-    const group = ids.get(id) ?? [];
+  // Re-importing the same or an overlapping file yields rows with the same ID
+  // and identical economic content: keep exactly one and report the merge.
+  // Same ID with different content is a genuine conflict: exclude all copies.
+  const duplicateIds = new Set<string>();
+  const mergedDuplicates = new Set<CanonicalTransaction>();
+  for (const [id, group] of ids) {
+    if (group.length < 2) continue;
+    const signature = economicSignature(group[0]);
+    if (group.every((transaction) => economicSignature(transaction) === signature)) {
+      group.slice(1).forEach((transaction) => mergedDuplicates.add(transaction));
+      warnings.push({
+        code: "DUPLICATE_TRANSACTION_MERGED",
+        transactionId: id,
+        message: `Transaction ID "${id}" appears ${group.length} times with identical details (${describeSources(group)}); it was counted once.`,
+      });
+      continue;
+    }
+    duplicateIds.add(id);
     rejectedTransactionCount += group.length;
     errors.push({
       code: "DUPLICATE_TRANSACTION_ID",
       transactionId: id,
-      message: `Transaction ID "${id}" occurs ${group.length} times; all rows with this ID were excluded to avoid double counting.`,
+      message: `Transaction ID "${id}" occurs ${group.length} times with conflicting details (${describeSources(group)}); all rows with this ID were excluded to avoid double counting.`,
     });
   }
 
   const transactions = validTransactions
-    .filter((transaction) => !duplicateIds.has(transaction.transactionId))
+    .filter((transaction) => !duplicateIds.has(transaction.transactionId) && !mergedDuplicates.has(transaction))
     .sort(stableTransactionSort);
 
   const byInstrument = new Map<string, MutableInstrumentLedger>();
@@ -362,7 +393,8 @@ export function buildLedger(input: unknown[]): LedgerResult {
 
   const isComplete =
     errors.length === 0 &&
-    warnings.length === 0 &&
+    // A merged identical re-import is informational and does not reduce completeness.
+    warnings.every((issue) => issue.code === "DUPLICATE_TRANSACTION_MERGED") &&
     !cashFlows.hasUnknownOpeningBasis &&
     instruments.every((instrument) => instrument.realizedPnlComplete && instrument.openCostBasisTotal !== null);
 

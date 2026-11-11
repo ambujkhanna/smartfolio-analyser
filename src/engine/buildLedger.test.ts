@@ -87,13 +87,36 @@ describe("buildLedger", () => {
     expect(result.cashFlows.netSaleProceeds).toBe(595);
   });
 
-  it("rejects duplicate transaction IDs instead of double counting", () => {
+  it("rejects duplicate transaction IDs with conflicting details instead of double counting", () => {
     const first = trade({ transactionId: "same-id", quantity: 2 });
-    const second = trade({ transactionId: "same-id", quantity: 2, source: { fileName: "copy.csv", rowNumber: 2 } });
+    const second = trade({ transactionId: "same-id", quantity: 2, unitPrice: 101, source: { fileName: "copy.csv", rowNumber: 2 } });
     const result = buildLedger([first, second]);
     expect(result.instruments).toHaveLength(0);
     expect(result.errors.some((issue) => issue.code === "DUPLICATE_TRANSACTION_ID")).toBe(true);
     expect(result.rejectedTransactionCount).toBe(2);
+  });
+
+  it("counts an identical re-imported transaction once", () => {
+    const original = trade({ transactionId: "NSE:2026-10-01:402735415", quantity: 3 });
+    const reimported = trade({ transactionId: "NSE:2026-10-01:402735415", quantity: 3, source: { fileName: "tradebook-copy.csv", rowNumber: 7 } });
+    const result = buildLedger([original, reimported]);
+    expect(instrument(result)?.openQuantity).toBe(3);
+    expect(result.rejectedTransactionCount).toBe(0);
+    expect(result.errors.some((issue) => issue.code === "DUPLICATE_TRANSACTION_ID")).toBe(false);
+    const merged = result.warnings.find((issue) => issue.code === "DUPLICATE_TRANSACTION_MERGED");
+    expect(merged?.message).toContain("tradebook-copy.csv row 7");
+  });
+
+  it("gives the same ledger when the same file is imported twice", () => {
+    const rows = [
+      trade({ transactionId: "b1", quantity: 5, unitPrice: 100 }),
+      trade({ transactionId: "s1", kind: "sell", quantity: 2, unitPrice: 130, occurredAt: "2026-10-03T10:00:00.000Z", source: { fileName: "trades.csv", rowNumber: 3 } }),
+    ];
+    const once = buildLedger(rows);
+    const twice = buildLedger([...rows, ...rows.map((row) => ({ ...row, source: { fileName: "again.csv", rowNumber: row.source.rowNumber } }))]);
+    expect(instrument(twice)?.openQuantity).toBe(instrument(once)?.openQuantity);
+    expect(instrument(twice)?.realizedPnl).toBe(instrument(once)?.realizedPnl);
+    expect(twice.isComplete).toBe(once.isComplete);
   });
 
   it("flags date-only same-day ordering as ambiguous", () => {

@@ -191,11 +191,20 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
       });
     }
 
-    const transactionId = valueAt(values, headers, ["transactionid", "tradeid", "executionid"]);
     const date = valueAt(values, headers, ["occurredat", "datetime", "timestamp", "date", "tradedate", "transactiondate"]);
     const suppliedCurrency = valueAt(values, headers, ["currency", "curr"]);
     const exchange = valueAt(values, headers, ["exchange", "exch"]);
     const normalizedExchange = (exchange ?? "").trim().toUpperCase();
+    // An explicit transaction ID is used as-is. Broker trade/execution IDs are
+    // only unique within an exchange and trading day, so they are scoped by
+    // both; the same row re-imported still produces the same ID.
+    const explicitTransactionId = valueAt(values, headers, ["transactionid"]);
+    const brokerTradeId = valueAt(values, headers, ["tradeid", "executionid"]);
+    const transactionId = explicitTransactionId
+      ? explicitTransactionId
+      : brokerTradeId
+        ? `${normalizedExchange || "UNKNOWN"}:${(date ?? "").trim()}:${brokerTradeId}`
+        : undefined;
     // Indian exchange tradebooks commonly omit currency because NSE/BSE cash
     // equity trades are denominated in INR. Infer only for these explicit
     // exchange values; do not guess a currency for unknown exchanges.

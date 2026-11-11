@@ -12,8 +12,20 @@ describe("parseZerodhaTradebook", () => {
     expect(result).not.toBeNull();
     expect(result?.acceptedCount).toBe(1);
     expect(result?.transactions[0].occurredAt).toBe("2025-04-01");
-    expect(result?.transactions[0].transactionId).toBe("402735415");
+    expect(result?.transactions[0].transactionId).toBe("NSE:2025-04-01:402735415");
     expect(result?.transactions[0].currency).toBe("INR");
+  });
+
+  it("keeps trades that reuse a broker trade ID on another day or exchange", () => {
+    const csv = [
+      "symbol,isin,trade_date,exchange,segment,series,trade_type,quantity,price,trade_id",
+      "OFSS,INE881D01027,01-04-2025,NSE,EQ,EQ,buy,1,7689.6,1001",
+      "OFSS,INE881D01027,02-04-2025,NSE,EQ,EQ,buy,2,7700,1001",
+      "OFSS,INE881D01027,02-04-2025,BSE,EQ,EQ,buy,3,7701,1001",
+    ].join("\n");
+    const result = parseZerodhaTradebook(csv, "tradebook.csv");
+    const ids = result?.transactions.map((transaction) => transaction.transactionId);
+    expect(ids).toEqual(["NSE:2025-04-01:1001", "NSE:2025-04-02:1001", "BSE:2025-04-02:1001"]);
   });
 
   it("does not claim unrelated CSV files as Zerodha tradebooks", () => {
