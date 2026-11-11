@@ -18,6 +18,7 @@ function request(body: string, authorization?: string, clientIp = "192.0.2.10"):
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
@@ -38,6 +39,10 @@ describe("POST /api/quotes access controls", () => {
   });
 
   it("serves a fresh AMFI NAV without an Upstox token", async () => {
+    // The fixture NAV is dated 28-Oct-2026; pin "now" to the next day so the
+    // freshness check does not start failing as real time passes.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-29T10:00:00+05:30"));
     vi.stubEnv("SMARTFOLIO_ACCESS_KEY", accessKey);
     vi.stubEnv("UPSTOX_ANALYTICS_TOKEN", "");
     const navText = "120;INF123A01011;INF123A01029;Example Direct Growth;Direct;Growth;123.4567;28-Oct-2026";
