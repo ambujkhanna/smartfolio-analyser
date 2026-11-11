@@ -35,6 +35,7 @@ export function parseZerodhaTradebook(
     ["tradedate", "date"].includes(header),
   );
   if (dateIndex < 0) return null;
+  const executionIndex = headers.findIndex((header) => header === "orderexecutiontime");
 
   const normalizedRows = rows.map((row, rowIndex) => {
     if (rowIndex === 0) return row;
@@ -51,6 +52,16 @@ export function parseZerodhaTradebook(
         date.getUTCDate() === Number(day)
       ) {
         next[dateIndex] = candidate;
+      }
+    }
+    // Zerodha's execution time is exchange local time (IST, no offset in the
+    // file). Using it gives same-day trades a reliable order; it is only used
+    // when it falls on the trade date, otherwise the date-only value stays.
+    if (executionIndex >= 0) {
+      const execution = String(next[executionIndex] ?? "").trim().replace(" ", "T");
+      const tradeDate = String(next[dateIndex] ?? "").trim();
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(execution) && execution.slice(0, 10) === tradeDate) {
+        next[dateIndex] = execution + "+05:30";
       }
     }
     return next;

@@ -205,7 +205,7 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
     const transactionId = explicitTransactionId
       ? explicitTransactionId
       : brokerTradeId
-        ? `${normalizedExchange || "UNKNOWN"}:${(date ?? "").trim()}:${brokerTradeId}`
+        ? `${normalizedExchange || "UNKNOWN"}:${(date ?? "").trim().slice(0, 10)}:${brokerTradeId}`
         : undefined;
     // Indian exchange tradebooks commonly omit currency because NSE/BSE cash
     // equity trades are denominated in INR. Infer only for these explicit

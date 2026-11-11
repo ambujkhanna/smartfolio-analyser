@@ -11,6 +11,7 @@ import { calculatePortfolioPnL, type PortfolioPnL } from "../engine/calculatePor
 import { buildPositionValuations } from "../engine/quoteValuations";
 import { parseGenericCsv, type CsvPreviewRow, type GenericCsvImportResult } from "../importers/genericCsv";
 import { importProgress } from "../lib/importProgress";
+import { xlsxTransactionTable, XlsxReadError } from "../importers/xlsx";
 import { parseZerodhaTradebook } from "../importers/zerodhaTradebook";
 import { formatINR } from "../lib/formatMoney";
 import type { QuoteValidation } from "../domain/quote";
@@ -127,23 +128,34 @@ export default function ImportReview() {
     if (!file) return;
 
     const extension = file.name.toLowerCase().split(".").pop() ?? "";
-    if (!["csv", "txt"].includes(extension)) {
-      const message = ["xls", "xlsx", "pdf"].includes(extension)
-        ? "This format is not enabled in the current build yet."
+    if (!["csv", "txt", "xlsx"].includes(extension)) {
+      const message = ["xls", "pdf"].includes(extension)
+        ? extension === "xls"
+          ? "Old .xls workbooks are not supported. Open the file in Excel and save it as .xlsx or CSV."
+          : "PDF files are not supported yet."
         : "This file format is not supported.";
-      setError(message + " For now, upload a CSV or delimited TXT file. Spreadsheet and PDF parsing need dedicated parsers and validation.");
+      setError(message + " Upload a Zerodha tradebook as .xlsx or .csv.");
       event.target.value = "";
       return;
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      setError("This file is larger than 5 MB. Split it into smaller CSV files and try again.");
+      setError("This file is larger than 5 MB. Split it into smaller files and try again.");
       event.target.value = "";
       return;
     }
 
     setIsReading(true);
     try {
+      if (extension === "xlsx") {
+        const table = xlsxTransactionTable(new Uint8Array(await file.arrayBuffer()));
+        if (!table) {
+          setError("No transaction table was found in this workbook. Expected a header row with columns such as Symbol, ISIN, Trade Date, Trade Type, Quantity, Price and Trade ID.");
+          return;
+        }
+        setResult(parseZerodhaTradebook(table.csvText, file.name) ?? parseGenericCsv(table.csvText, file.name));
+        return;
+      }
       const text = await file.text();
       if (!text.trim()) {
         setError("The selected file is empty.");
@@ -154,8 +166,12 @@ export default function ImportReview() {
         return;
       }
       setResult(parseZerodhaTradebook(text, file.name) ?? parseGenericCsv(text, file.name));
-    } catch {
-      setError("The file could not be read. Check that it is a valid text CSV and try again.");
+    } catch (readFailure) {
+      setError(
+        readFailure instanceof XlsxReadError
+          ? readFailure.message + " Re-download the file from Zerodha Console or save it as CSV."
+          : "The file could not be read. Check that it is a valid CSV, TXT or XLSX file and try again.",
+      );
     } finally {
       setIsReading(false);
     }
@@ -395,7 +411,7 @@ export default function ImportReview() {
             The file is parsed in your browser. Invalid rows stay visible; rows with a symbol but no stable identity can be resolved against a trusted instrument master.
           </p>
         </div>
-        <span className="file-limit">CSV / delimited TXT · up to 5 MB</span>
+        <span className="file-limit">XLSX / CSV / TXT · up to 5 MB</span>
       </div>
 
       <ol className="progress-steps" aria-label="Your progress">
@@ -416,13 +432,13 @@ export default function ImportReview() {
       <label className="file-picker" htmlFor="tradebook-file">
         <span className="file-picker-icon" aria-hidden="true">↑</span>
         <span>
-          <strong>{isReading ? "Reading file…" : "Choose a CSV or TXT file"}</strong>
-          <small>The file stays in your browser. CSV and delimited TXT are supported now; XLS/XLSX and PDF require dedicated parsers. If you request resolution, only instrument identifiers are sent to the server.</small>
+          <strong>{isReading ? "Reading file…" : "Choose your tradebook (.xlsx or .csv)"}</strong>
+          <small>The file stays in your browser. Zerodha Console exports (.xlsx or .csv) and delimited TXT are supported; PDF is not. If you match instruments, only identifiers such as ISINs are sent to the server.</small>
         </span>
         <input
           id="tradebook-file"
           type="file"
-          accept=".csv,.txt,text/csv,text/plain"
+          accept=".csv,.txt,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           onChange={handleFileChange}
           disabled={isReading || isResolving}
         />
