@@ -143,3 +143,12 @@ A total can be displayed only with a completeness status. Any metric that depend
 - Multi-currency conversion.
 - Automatic attribution of shared fees to individual securities without a documented rule.
 - Guessing missing opening cost basis or transaction order.
+
+## Splits and bonus issues (added 11 Nov 2026)
+
+- Recorded as `split` or `bonus` rows for one instrument, with a `ratio` column = **units held after the action per unit held before**. Examples: 1:5 split (₹10 → ₹2 face value) → `5`; 1:1 bonus → `2`; 1:2 bonus (1 new for every 2 held) → `1.5`.
+- Every open FIFO lot's quantity is multiplied by the ratio. **Total cost basis is unchanged**, so per-unit cost falls proportionally. No cash flow and no realized P&L are recorded.
+- Later sales consume the adjusted lots normally. Example: buy 10 @ ₹500 (₹5,000) → 1:5 split → 50 units at ₹100 → sell 20 @ ₹120 = ₹2,400 proceeds − ₹2,000 cost = **₹400 realized**.
+- A split/bonus with no open quantity produces a `CORPORATE_ACTION_WITHOUT_POSITION` warning and is not applied (the earlier purchases are probably missing).
+- Same-day split/bonus rows without timestamps are ordered by source file/row and flagged `AMBIGUOUS_ORDER`, because trades before vs. after the ex-date change the result.
+- Not yet supported: mergers, demergers, rights issues, symbol/ISIN changes. These stay out of scope until modelled explicitly.

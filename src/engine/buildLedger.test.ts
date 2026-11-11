@@ -96,6 +96,50 @@ describe("buildLedger", () => {
     expect(result.rejectedTransactionCount).toBe(2);
   });
 
+  it("applies a 1:5 stock split by multiplying quantity and keeping total cost", () => {
+    // Buy 10 @ ₹500 = ₹5,000; 1:5 split → 50 units, cost still ₹5,000 (₹100/unit).
+    // Sell 20 @ ₹120 = ₹2,400 proceeds, FIFO cost 20 × ₹100 = ₹2,000 → realized ₹400.
+    const result = buildLedger([
+      trade({ transactionId: "buy", quantity: 10, unitPrice: 500 }),
+      trade({ transactionId: "split", kind: "split", quantity: undefined, unitPrice: undefined, ratio: 5, occurredAt: "2026-10-05T00:00:00.000Z", source: { fileName: "actions.csv", rowNumber: 2 } }),
+      trade({ transactionId: "sell", kind: "sell", quantity: 20, unitPrice: 120, occurredAt: "2026-10-06T10:00:00.000Z", source: { fileName: "trades.csv", rowNumber: 3 } }),
+    ]);
+    const position = instrument(result);
+    expect(position?.openQuantity).toBeCloseTo(30);
+    expect(position?.openCostBasisTotal).toBeCloseTo(3000);
+    expect(position?.realizedPnl).toBeCloseTo(400);
+    expect(result.cashFlows.buyOutflows).toBe(5000);
+  });
+
+  it("applies a 1:1 bonus without creating cash flows", () => {
+    const result = buildLedger([
+      trade({ transactionId: "buy", quantity: 4, unitPrice: 300 }),
+      trade({ transactionId: "bonus", kind: "bonus", quantity: undefined, unitPrice: undefined, ratio: 2, occurredAt: "2026-10-05T00:00:00.000Z", source: { fileName: "actions.csv", rowNumber: 2 } }),
+    ]);
+    const position = instrument(result);
+    expect(position?.openQuantity).toBe(8);
+    expect(position?.openCostBasisTotal).toBe(1200);
+    expect(result.cashFlows.netSaleProceeds).toBe(0);
+    expect(result.isComplete).toBe(true);
+  });
+
+  it("warns instead of guessing when a corporate action has no open position", () => {
+    const result = buildLedger([
+      trade({ transactionId: "split", kind: "split", quantity: undefined, unitPrice: undefined, ratio: 2 }),
+    ]);
+    expect(result.warnings.some((issue) => issue.code === "CORPORATE_ACTION_WITHOUT_POSITION")).toBe(true);
+    expect(instrument(result)?.openQuantity ?? 0).toBe(0);
+  });
+
+  it("rejects a split without a valid ratio", () => {
+    const result = buildLedger([
+      trade({ transactionId: "split", kind: "split", quantity: undefined, unitPrice: undefined }),
+      trade({ transactionId: "split-1", kind: "split", quantity: undefined, unitPrice: undefined, ratio: 1 }),
+    ]);
+    expect(result.rejectedTransactionCount).toBe(2);
+    expect(result.errors.every((issue) => issue.code === "INVALID_TRANSACTION")).toBe(true);
+  });
+
   it("counts an identical re-imported transaction once", () => {
     const original = trade({ transactionId: "NSE:2026-10-01:402735415", quantity: 3 });
     const reimported = trade({ transactionId: "NSE:2026-10-01:402735415", quantity: 3, source: { fileName: "tradebook-copy.csv", rowNumber: 7 } });

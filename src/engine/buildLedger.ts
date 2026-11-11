@@ -1,4 +1,4 @@
-import { validateTransaction, type CanonicalTransaction, type TransactionKind } from "../domain/transaction";
+import { QUANTITY_KINDS, validateTransaction, type CanonicalTransaction, type TransactionKind } from "../domain/transaction";
 
 export interface LedgerIssue {
   code: string;
@@ -85,6 +85,7 @@ function economicSignature(transaction: CanonicalTransaction): string {
     transaction.unitPrice ?? null,
     transaction.amount ?? null,
     transaction.charges ?? null,
+    transaction.ratio ?? null,
   ]);
 }
 
@@ -204,7 +205,7 @@ export function buildLedger(input: unknown[]): LedgerResult {
     if (
       rows.length > 1 &&
       rows.some((row) => isDateOnly(row.occurredAt)) &&
-      rows.some((row) => row.kind === "buy" || row.kind === "sell" || row.kind === "opening-balance")
+      rows.some((row) => QUANTITY_KINDS.includes(row.kind))
     ) {
       ambiguousKeys.add(key);
       warnings.push({
@@ -338,6 +339,27 @@ export function buildLedger(input: unknown[]): LedgerResult {
           instrumentId,
           message: `Sale for ${instrumentId} consumed units with unknown cost basis; realized P&L is incomplete.`,
         });
+      }
+      continue;
+    }
+
+    if (transaction.kind === "split" || transaction.kind === "bonus") {
+      // Quantity changes by the ratio; total cost is unchanged, so per-unit
+      // cost falls and no cash flow or realized P&L is recorded.
+      const ledger = byInstrument.get(instrumentId as string);
+      const ratio = transaction.ratio as number;
+      const heldBefore = ledger ? ledger.lots.reduce((sum, lot) => sum + lot.remainingQuantity, 0) : 0;
+      if (!ledger || heldBefore <= 1e-9) {
+        warnings.push({
+          code: "CORPORATE_ACTION_WITHOUT_POSITION",
+          transactionId: transaction.transactionId,
+          instrumentId,
+          message: `${transaction.kind === "split" ? "Split" : "Bonus"} for ${instrumentId} on ${transaction.occurredAt.slice(0, 10)} found no open quantity to adjust; check that earlier purchases are imported.`,
+        });
+        continue;
+      }
+      for (const lot of ledger.lots) {
+        lot.remainingQuantity *= ratio;
       }
       continue;
     }

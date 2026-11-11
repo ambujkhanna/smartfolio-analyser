@@ -1,4 +1,7 @@
-export type TransactionKind = "buy" | "sell" | "opening-balance" | "fee" | "dividend";
+export type TransactionKind = "buy" | "sell" | "opening-balance" | "fee" | "dividend" | "split" | "bonus";
+
+/** Kinds that change the quantity held of a specific instrument. */
+export const QUANTITY_KINDS: readonly TransactionKind[] = ["buy", "sell", "opening-balance", "split", "bonus"];
 
 export interface TransactionSource {
   fileName: string;
@@ -19,6 +22,12 @@ export interface CanonicalTransaction {
   amount?: number;
   /** Optional transaction charges attached to a trade, in the transaction currency. */
   charges?: number;
+  /**
+   * Split/bonus only: units held after the action per unit held before.
+   * Examples: 1:5 split (₹10 → ₹2 face value) = 5; 1:1 bonus = 2; 1:2 bonus = 1.5.
+   * Total cost basis is unchanged; only quantity (and so per-unit cost) changes.
+   */
+  ratio?: number;
   source: TransactionSource;
 }
 
@@ -37,6 +46,8 @@ const transactionKinds: readonly TransactionKind[] = [
   "opening-balance",
   "fee",
   "dividend",
+  "split",
+  "bonus",
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -100,12 +111,12 @@ export function validateTransaction(input: unknown): TransactionValidation {
   const kind = input.kind as TransactionKind;
   const instrumentId = input.instrumentId;
   if (
-    ["buy", "sell", "opening-balance"].includes(kind) &&
+    QUANTITY_KINDS.includes(kind) &&
     (typeof instrumentId !== "string" || !instrumentId.trim())
   ) {
     addIssue("instrumentId", "Instrument identity is required for this transaction kind.");
   } else if (
-    !["buy", "sell", "opening-balance"].includes(kind) &&
+    !QUANTITY_KINDS.includes(kind) &&
     instrumentId !== undefined &&
     (typeof instrumentId !== "string" || !instrumentId.trim())
   ) {
@@ -140,6 +151,14 @@ export function validateTransaction(input: unknown): TransactionValidation {
     if (!isPositiveFiniteNumber(input.amount)) {
       addIssue("amount", "Fee and dividend rows require a finite positive amount.");
     }
+  }
+
+  if (kind === "split" || kind === "bonus") {
+    if (!isPositiveFiniteNumber(input.ratio) || input.ratio === 1) {
+      addIssue("ratio", "Split and bonus rows require a finite positive ratio (units after per unit before) other than 1.");
+    }
+  } else if (input.ratio !== undefined) {
+    addIssue("ratio", "A ratio is only valid for split and bonus rows.");
   }
 
   if (input.charges !== undefined && !isNonNegativeFiniteNumber(input.charges)) {
@@ -179,6 +198,7 @@ export function validateTransaction(input: unknown): TransactionValidation {
   if (typeof input.unitPrice === "number") transaction.unitPrice = input.unitPrice;
   if (typeof input.amount === "number") transaction.amount = input.amount;
   if (typeof input.charges === "number") transaction.charges = input.charges;
+  if (typeof input.ratio === "number") transaction.ratio = input.ratio;
 
   return { status: "valid", transaction };
 }

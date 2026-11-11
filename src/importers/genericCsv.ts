@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import { validateTransaction, type CanonicalTransaction, type TransactionKind } from "../domain/transaction";
+import { QUANTITY_KINDS, validateTransaction, type CanonicalTransaction, type TransactionKind } from "../domain/transaction";
 
 export interface CsvImportIssue {
   code: string;
@@ -66,6 +66,8 @@ function parseKind(value: string | undefined): TransactionKind | undefined {
   if (["openingbalance", "opening", "holding", "openingposition"].includes(normalized)) return "opening-balance";
   if (["fee", "fees", "charge", "charges", "brokerage"].includes(normalized)) return "fee";
   if (["dividend", "dividends", "dividendpayout"].includes(normalized)) return "dividend";
+  if (["split", "stocksplit", "subdivision"].includes(normalized)) return "split";
+  if (["bonus", "bonusissue", "bonusshares"].includes(normalized)) return "bonus";
   return undefined;
 }
 
@@ -178,7 +180,7 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
       "amfischemecode",
     ]);
     const displaySymbol = valueAt(values, headers, ["symbol", "ticker", "tradingsymbol", "scrip", "security"]);
-    const needsResolution = Boolean(kind && ["buy", "sell", "opening-balance"].includes(kind) && !explicitInstrumentId);
+    const needsResolution = Boolean(kind && QUANTITY_KINDS.includes(kind) && !explicitInstrumentId);
 
     if (needsResolution) {
       rowIssues.push({
@@ -226,6 +228,7 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
           : undefined,
     );
     const charges = parseNumber(feeAmount);
+    const ratio = parseNumber(valueAt(values, headers, ["ratio", "splitratio", "bonusratio", "multiplier"]));
 
     const candidate: Record<string, unknown> = {
       transactionId: transactionId || deterministicId(fileName, rowNumber, raw),
@@ -242,6 +245,7 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
     if (unitPrice !== undefined) candidate.unitPrice = unitPrice;
     if (amount !== undefined) candidate.amount = amount;
     if (charges !== undefined && kind !== "fee") candidate.charges = charges;
+    if (ratio !== undefined && (kind === "split" || kind === "bonus")) candidate.ratio = ratio;
 
     const validation = validateTransaction(candidate);
     if (validation.status === "invalid") {
