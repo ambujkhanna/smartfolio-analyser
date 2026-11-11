@@ -114,11 +114,20 @@ describe("parseGenericCsv", () => {
 
   it("reports unsupported transaction kinds without dropping the row", () => {
     const result = parseGenericCsv(
-      "kind,ISIN,date,currency,quantity,price\nSPLIT,INE002A01018,2026-10-01,INR,1,10",
+      "kind,ISIN,date,currency,quantity,price\nMERGER,INE002A01018,2026-10-01,INR,1,10",
       "trades.csv",
     );
     expect(result.rowCount).toBe(1);
     expect(result.rows[0].status).toBe("invalid");
     expect(result.issues.some((issue) => issue.code === "UNSUPPORTED_TRANSACTION_KIND")).toBe(true);
+  });
+
+  it("imports a stock split row with its ratio", () => {
+    const result = parseGenericCsv(
+      "transactionId,kind,ISIN,date,currency,ratio\nCA-1,Stock split,INE002A01018,2026-10-01,INR,5",
+      "actions.csv",
+    );
+    expect(result.acceptedCount).toBe(1);
+    expect(result.transactions[0]).toMatchObject({ kind: "split", ratio: 5, transactionId: "CA-1" });
   });
 });
