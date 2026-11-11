@@ -10,6 +10,7 @@ import { buildLedger, type LedgerResult } from "../engine/buildLedger";
 import { calculatePortfolioPnL, type PortfolioPnL } from "../engine/calculatePortfolioPnL";
 import { buildPositionValuations } from "../engine/quoteValuations";
 import { parseGenericCsv, type CsvPreviewRow, type GenericCsvImportResult } from "../importers/genericCsv";
+import { importProgress } from "../lib/importProgress";
 import { parseZerodhaTradebook } from "../importers/zerodhaTradebook";
 import { formatINR } from "../lib/formatMoney";
 import type { QuoteValidation } from "../domain/quote";
@@ -374,6 +375,15 @@ export default function ImportReview() {
   const resolvedCount = Object.values(resolutionByRow).filter((resolution) => resolution.status === "resolved").length;
   const ambiguousCount = Object.values(resolutionByRow).filter((resolution) => resolution.status === "ambiguous").length;
   const unresolvedCount = Object.values(resolutionByRow).filter((resolution) => resolution.status === "unresolved").length;
+  const progressSteps = importProgress({
+    hasFile: Boolean(result),
+    acceptedCount: result?.acceptedCount ?? 0,
+    needsResolution: resolvableRowCount > 0,
+    resolved: Boolean(masterRetrievedAt),
+    calculated: Boolean(analysis),
+    hasOpenPositions: openPositions.length > 0,
+    pricesFetched: Boolean(quoteRetrievedAt),
+  });
 
   return (
     <section className="import-review" aria-labelledby="import-title">
@@ -387,6 +397,21 @@ export default function ImportReview() {
         </div>
         <span className="file-limit">CSV / delimited TXT · up to 5 MB</span>
       </div>
+
+      <ol className="progress-steps" aria-label="Your progress">
+        {progressSteps.map((step, index) => (
+          <li key={step.key} className={"progress-step is-" + step.state} aria-current={step.state === "current" ? "step" : undefined}>
+            <span className="progress-step-marker" aria-hidden="true">
+              {step.state === "done" ? "✓" : step.state === "skipped" ? "–" : index + 1}
+            </span>
+            <span className="progress-step-text">
+              <strong>{step.label}</strong>
+              {step.state === "current" ? <small>{step.hint}</small> : null}
+              {step.state === "skipped" ? <small>Not needed for this file</small> : null}
+            </span>
+          </li>
+        ))}
+      </ol>
 
       <label className="file-picker" htmlFor="tradebook-file">
         <span className="file-picker-icon" aria-hidden="true">↑</span>

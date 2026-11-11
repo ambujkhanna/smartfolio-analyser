@@ -420,3 +420,44 @@ h3 {
 @media (max-width: 900px) {
   .quote-access-panel { grid-template-columns: 1fr; align-items: stretch; }
 }
+
+/* Progress steps: shows what is done and what to do next. */
+.progress-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+  padding: 0;
+  list-style: none;
+}
+.progress-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+}
+.progress-step strong { display: block; font-size: 13px; color: inherit; }
+.progress-step small { display: block; margin-top: 4px; font-size: 11px; line-height: 1.5; }
+.progress-step-marker {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 700;
+}
+.progress-step.is-current { border-color: var(--green); background: var(--green-soft); color: var(--ink); }
+.progress-step.is-current .progress-step-marker { background: var(--green); border-color: var(--green); color: #fff; }
+.progress-step.is-done .progress-step-marker { background: var(--green-soft); border-color: var(--green); color: var(--green); }
+.progress-step.is-done strong { color: var(--ink); }
+.progress-step.is-skipped { opacity: 0.6; }
+@media (max-width: 720px) {
+  .progress-steps { grid-template-columns: 1fr; }
+}
