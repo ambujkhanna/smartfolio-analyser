@@ -1,8 +1,10 @@
 import Link from "next/link";
 import ImportReview from "../components/ImportReview";
 import ZerodhaPanel from "../components/ZerodhaPanel";
+import { getBuildInfo } from "../lib/buildInfo";
 
 export default function HomePage() {
+  const build = getBuildInfo();
   return (
     <main className="page-shell">
       <header className="site-header">
@@ -79,6 +81,9 @@ export default function HomePage() {
       <footer className="site-footer">
         <span>Smartfolio Analyser</span>
         <span>Accuracy before completeness</span>
+        <span title={build.branch ? `Branch: ${build.branch}` : undefined}>
+          Build <code>{build.shortCommit}</code> · {build.environment}
+        </span>
       </footer>
     </main>
   );

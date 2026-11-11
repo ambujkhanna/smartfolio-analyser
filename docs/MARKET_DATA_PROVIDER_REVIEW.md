@@ -82,9 +82,24 @@ Official provider documentation:
 - Groww Trading API overview: https://groww.in/trade-api
 - Groww API introduction/authentication: https://groww.in/trade-api/docs/curl
 
+### Historical trades: what no API provides (decision, 29 Oct 2026)
+
+- Neither Kite Connect plan exposes a complete historical tradebook. The paid plan (₹500/month per API key) adds live and historical **market prices**, not past buy/sell transactions, so it is **not** purchased to solve trade history.
+- Consequence: a Zerodha tradebook export is a **one-time historical import** that establishes the baseline ledger. After that, the app should store each day's trades/positions/holdings from the connected account (requires persistent storage and a daily sync; see plan Phase 3) so that later uploads are unnecessary. Collecting trades going forward cannot reconstruct earlier years.
+- Where history is missing, Zerodha holdings `average_price` may be shown as a clearly labelled **broker cost basis** for unrealized P&L only. It must never be used to derive realized P&L.
+
+### Why Zerodha is not the price source
+
+- Kite Connect Personal (free) has no live or historical market-data APIs; the paid plan costs ₹500/month per API key.
+- Zerodha's terms restrict displaying Kite Connect market data on external platforms, so even the paid plan may not suit Smartfolio as designed.
+- Decision: Zerodha for account data (holdings, positions, current-day trades, tradebook exports), **Upstox Analytics Token for equity/ETF quotes**, **AMFI for mutual-fund NAVs**.
+
 ## Cost, access, and remaining risks
 
 - Upstox documents the Analytics Token and its APIs as free; no mandatory paid market-data subscription is currently recommended.
+- The Analytics Token (valid ~1 year) is different from Upstox's login access token, which expires daily around 3:30 AM. The app uses only the Analytics Token, so no daily renewal is needed; plan a yearly rotation reminder.
+- Getting the token requires an Upstox account. Account opening and API access are listed as free; account maintenance is free for the first year and then about ₹300 + GST per year for a regular (non-BSDA) account, even without trading. Re-check before renewal.
+- Both `UPSTOX_ANALYTICS_TOKEN` and `SMARTFOLIO_ACCESS_KEY` (generate with e.g. PowerShell `[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))`) are stored as Vercel *Secret* variables, Preview-only until release.
 - A user must generate their own token in the Upstox Developer Apps page and add it as `UPSTOX_ANALYTICS_TOKEN` in the hosting environment. Generate a separate random `SMARTFOLIO_ACCESS_KEY` (at least 32 characters) and configure it in the same server environment. The UI prompts for this application access key; it is held in memory only and is never stored. Do not request either secret in chat or commit them to GitHub.
 - The quote adapter and instrument-master parser have fixture-based tests. Live provider coverage and symbol-to-instrument mapping still need end-to-end verification with the current downloaded master.
 - AMFI data is the chosen first NAV source, but the current file format and exact download endpoint must be confirmed while implementing the adapter.

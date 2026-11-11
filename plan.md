@@ -146,6 +146,16 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [ ] Add fixtures/tests for duplicate records across providers, missing history, partial API coverage, ambiguous corporate actions, missing charges, and a fully auto-resolved portfolio that requires no uploads.
 - [ ] Verify each provider's current official API capabilities and commercial limits before implementation. Zerodha's current Kite Connect endpoints include holdings and positions, while its standard orders/trades endpoints are current-day; Groww documents portfolio/order/trade APIs but access and pricing must be checked. Dividend/corporate-action history must not be presumed available from either API without an explicit supported endpoint.
 
+### Task 3.5 — Stabilise deployment and re-verify imports (added 11 Nov 2026)
+
+- [x] Show the deployed commit in the page footer and at `/api/version`, so a stale branch alias (seen twice with `390f26a`) is visible immediately.
+- [ ] Confirm the Preview branch alias serves the newest commit; promote the newest deployment if not (never Redeploy an older entry).
+- [ ] Re-upload the same Zerodha tradebook on the current Preview; all rows must be accepted with dates, quantities, prices and trade IDs intact.
+- [ ] Re-run holdings reconciliation after the ISIN fixes (`dcdf903`, `9998f79`) and record the new counts; classify remaining mismatches as missing history vs. bug.
+- [ ] Decide on the public Production alias `smartfolio-analyser.vercel.app`, which still serves an early feature-branch build: protect it, or relabel the README "Live app" link until release.
+- [ ] Treat the tradebook upload as a one-time historical baseline import in the UI; daily sync (Phase 3 storage) keeps it current afterwards.
+- [ ] Show Zerodha holdings `average_price` as a labelled broker cost basis where history is missing (unrealized P&L only).
+
 **Acceptance criteria:** Users can connect supported platforms and receive a coverage report without uploading one file per transaction category. The app only asks for additional input to resolve a specific, material data gap; every request explains why it is needed. No missing data is fabricated and no report is mandatory merely because its category exists.
 
 ## Phase 4 — Instrument identity

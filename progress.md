@@ -1,6 +1,6 @@
 # Smartfolio Analyser — Progress Tracker
 
-**Last updated:** 29 October 2026  
+**Last updated:** 11 November 2026  
 **Repository:** https://github.com/ambujkhanna/smartfolio-analyser  
 **Implementation branch:** `feat/reliable-pnl-foundation`  
 **Documentation PR:** https://github.com/ambujkhanna/smartfolio-analyser/pull/1
@@ -13,7 +13,8 @@
 **Architecture decision to revisit:** Discuss and decide on secure persistent per-user portfolio storage (private managed database, encryption/access controls, retention/deletion and backups) plus scheduled daily broker sync. Initial historical trades/holdings should establish a reconciled baseline once; subsequent authorised syncs should append/deduplicate new activity and snapshots so users do not repeatedly upload the same files. Track sync health and coverage, handle expired authorisation/API gaps, and never infer missing trades from holdings snapshots. This remains a discussion/planning item, not implemented.
 
 **Overall status:** The app includes browser-side CSV preview, local FIFO/P&L calculation, instrument resolution, a protected quote endpoint, quote provenance UI, and a read-only Zerodha Kite Connect integration. The user verified that holdings, positions, current-day orders, and current-day trades return data in Preview. Holdings reconciliation compares current broker quantities with ledger open quantities by ISIN and does not turn snapshots into transactions. Product direction is now automatic-first: pull supported data from each connected platform, match and deduplicate it, report coverage, and request files only for specific material gaps not exposed by the platform APIs. This is specified in plan.md but the cross-provider orchestration and gap-request UI are not yet implemented. Upstox live quote/NAV calls remain separately unverified.  
-**Last verified code checks:** The latest previously confirmed quality run is [40826588884](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40826588884) on SHA `0b3f1ff4a7d0fe51eb6c3a60174e67a07ce14050`. Recent reconciliation code and automatic-first plan changes are committed on `feat/reliable-pnl-foundation`; the newest code commit CI/deployment must pass before considering it verified. Do not treat new UI logic as code-verified until checks pass.  
+**Last verified code checks (11 Nov 2026):** Latest code commit `9998f79` passed lint, tests and build in [run 40847362027](https://github.com/ambujkhanna/smartfolio-analyser/actions/runs/40847362027) (as did `dcdf903` and `6072b21`); `9998f79` and the latest docs commit `a1e6906` both report a successful Vercel deployment. Not yet re-verified in the app: the tradebook re-upload and the reconciliation re-run on the newest Preview.  
+**Deployment caveats (11 Nov 2026):** The Preview branch alias was twice found serving the stale commit `390f26a`; the page footer and `/api/version` now show the deployed commit. The Production alias `smartfolio-analyser.vercel.app` is publicly reachable and still serves an early feature-branch build (no Zerodha routes); Preview deployments are behind Vercel authentication.  
 **Lockfile:** `package-lock.json` is committed. The quality workflow uses `npm ci` when the lockfile exists. Documentation-only commits no longer trigger redundant CI runs.  
 **Current market-data state:** The browser UI calls `/api/quotes` with the Smartfolio access key and recalculates valuations from returned quote results. The server route uses `SMARTFOLIO_ACCESS_KEY` and `UPSTOX_ANALYTICS_TOKEN`; AMFI NAV requests do not need the Upstox token. Live Zerodha account-data requests have been verified by the user in Preview. Live Upstox quote/NAV requests remain unverified.
 
@@ -75,7 +76,7 @@
 
 ## Next single task
 
-**Verify the tradebook currency fix in CI and deployment.** Confirm the new importer tests pass, inspect the latest Vercel build, and ask the user to re-upload the same CSV. If additional row-level issues remain, use the exact displayed errors to add a broker-specific adapter rather than relaxing validation globally. Keep the UI explicit that market values are unavailable until a valid quote is supplied.
+**Confirm the Preview alias serves the newest commit, then re-test (plan Task 3.5).** Check the footer/`/api/version` commit on the branch alias, re-upload the same Zerodha tradebook (expect all rows accepted), reconnect Zerodha and re-run holdings reconciliation, and record the new counts. In parallel, once the Upstox Analytics Token is configured, verify live quotes for a few NSE holdings and one AMFI NAV.
 
 ## Task history
 
@@ -117,3 +118,5 @@
 
 
 | 2026-10-29 | Record persistent portfolio storage and daily-sync discussion | Added a follow-up architecture discussion: private per-user database, secure retention/deletion/backups, initial-history baseline, idempotent daily broker sync, sync health and explicit gap handling. Not implemented; revisit before selecting a database/scheduler or writing the pipeline. | Progress tracker updated on `feat/reliable-pnl-foundation` |
+
+| 2026-11-11 | Phase 0 stabilisation (branch `claude/phase0-stabilise`) | Added build-commit display (page footer + `/api/version`, with unit tests) to expose stale Preview aliases. Recorded chat-only decisions in docs: Preview-only Kite variables and branch-alias redirect URL with troubleshooting (`ZERODHA_CONNECT.md`); paid Kite plan does not provide trade history, tradebook is a one-time baseline import, `average_price` fallback, why Zerodha is not the price source, Analytics Token vs daily login token, Upstox account costs (`MARKET_DATA_PROVIDER_REVIEW.md`); plan Task 3.5. Confirmed `9998f79` CI/Vercel success; found the public Production alias serving an early build. | Lint/tests/build not run locally (no Node in this environment); CI pending on push |
