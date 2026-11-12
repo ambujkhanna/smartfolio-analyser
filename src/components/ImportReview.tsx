@@ -711,7 +711,7 @@ export default function ImportReview({ onLedgerChange, onTransactionsImported }:
                 <div className="analysis-issues">
                   {missingBuys.length > 0 ? (
                     <>
-                      <strong>Sales without an earlier buy in your files ({missingBuys.length} stock{missingBuys.length === 1 ? "" : "s"})</strong>
+                      <strong>Sold shares with no purchase record in your files ({missingBuys.length} stock{missingBuys.length === 1 ? "" : "s"})</strong>
                       <p className="import-safety-note">
                         These shares were bought before your files start, so their cost is unknown and these sales are left out of profit/loss rather than guessed.
                         Fix: download the older tradebooks from Zerodha Console (one per year) and select them together with this one.
@@ -719,7 +719,7 @@ export default function ImportReview({ onLedgerChange, onTransactionsImported }:
                       <ul>
                         {missingBuys.map((item) => (
                           <li key={item.instrumentId}>
-                            <b>{instrumentLabel(item.instrumentId)}</b>: sold {formatQuantity(item.quantity)} share{item.quantity === 1 ? "" : "s"} in {item.sales} sale{item.sales === 1 ? "" : "s"} with no earlier buy in your files
+                            <b>{instrumentLabel(item.instrumentId)}</b>: sold {formatQuantity(item.quantity)} share{item.quantity === 1 ? "" : "s"} in {item.sales} sale{item.sales === 1 ? "" : "s"}, but the files don&rsquo;t show when they were bought
                           </li>
                         ))}
                       </ul>

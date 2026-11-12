@@ -145,4 +145,47 @@ describe("analyseCorporateActions", () => {
     expect(found.some((item) => item.type === "split-bonus")).toBe(false);
     expect(found[0]?.type).toBe("unexplained");
   });
+
+  it("finds LIC's 1:1 bonus from Zerodha's adjusted average cost, even when the price moved (LICI case)", () => {
+    const rows = [
+      t("buy", "INE0J1Y01017", "LICI", "2022-05-17", 30, 949),
+      t("buy", "INE0J1Y01017", "LICI", "2023-03-20", 15, 600),
+    ];
+    const ourAverage = (30 * 949 + 15 * 600) / 45;
+    // Price today is well above half the purchase price, so a price-only check would fail.
+    const found = analyseCorporateActions(rows, [{ isin: "INE0J1Y01017", symbol: "LICI", quantity: 90, lastPrice: 610, averagePrice: ourAverage / 2 }]);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ type: "split-bonus", ratio: 2, windowFrom: "2023-03-20", windowTo: null });
+    if (found[0]!.type === "split-bonus") expect(found[0]!.reason).toMatch(/average cost/);
+  });
+
+  it("does not claim a bonus when Zerodha's average cost was not halved", () => {
+    const rows = [t("buy", "INE0J1Y01017", "LICI", "2022-05-17", 45, 900)];
+    const found = analyseCorporateActions(rows, [{ isin: "INE0J1Y01017", symbol: "LICI", quantity: 90, lastPrice: 450, averagePrice: 690 }]);
+    expect(found.some((item) => item.type === "split-bonus")).toBe(false);
+  });
+
+  it("labels sell-first-buy-back-same-day as intraday, not missing history", () => {
+    const rows = [
+      { ...t("sell", "INE03Q201024", "ALIVUS", "2026-10-28", 10, 1400), occurredAt: "2026-10-28T09:30:00+05:30" },
+      { ...t("buy", "INE03Q201024", "ALIVUS", "2026-10-28", 10, 1380), occurredAt: "2026-10-28T14:10:00+05:30" },
+    ];
+    const found = analyseCorporateActions(rows, []);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ type: "unexplained" });
+    if (found[0]!.type === "unexplained") expect(found[0]!.message).toMatch(/intraday/);
+  });
+
+  it("explains a sale with no purchase record in plain words, including later buys", () => {
+    const rows = [
+      t("sell", "INE03Q201024", "ALIVUS", "2026-10-28", 10, 1400),
+      t("buy", "INE03Q201024", "ALIVUS", "2026-11-03", 5, 1350),
+    ];
+    const found = analyseCorporateActions(rows, [{ isin: "INE03Q201024", symbol: "ALIVUS", quantity: 5 }]);
+    expect(found[0]).toMatchObject({ type: "missing-buys", quantity: 10, beforeDate: "2026-10-27" });
+    if (found[0]!.type === "missing-buys") {
+      expect(found[0]!.reason).toMatch(/You sold 10 ALIVUS shares on 2026-10-28/);
+      expect(found[0]!.reason).toMatch(/Afterwards you bought 5 again/);
+    }
+  });
 });

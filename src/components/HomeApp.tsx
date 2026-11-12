@@ -124,6 +124,7 @@ export default function HomeApp() {
                 symbol: typeof holding.tradingsymbol === "string" ? holding.tradingsymbol : undefined,
                 quantity: (typeof holding.quantity === "number" ? holding.quantity : 0) + (typeof holding.t1_quantity === "number" ? holding.t1_quantity : 0),
                 ...(typeof holding.last_price === "number" && holding.last_price > 0 ? { lastPrice: holding.last_price } : {}),
+                ...(typeof holding.average_price === "number" && holding.average_price > 0 ? { averagePrice: holding.average_price } : {}),
               }]
             : [],
         ),

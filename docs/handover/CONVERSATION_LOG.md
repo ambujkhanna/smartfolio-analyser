@@ -85,6 +85,14 @@ orders and trades in Preview; recurring problem of the branch alias serving a st
     price drop a split/bonus causes (prices before vs after ≈ ratio). Otherwise a neutral "quantities don't add up"
     note with no Apply button. Owner advised to click "Not this" on the old CGPOWER card. Intraday (sell-then-buy
     same day) handling in the ledger is a TODO.
+32. **Owner reported** LICI (never sold) showing "quantities don't add up" / "Earlier trades missing (45 units
+    differ)", and that LIC gave a 1:1 bonus in 2026. Cause: the price check compared the purchase price with
+    today's price. Fix: Zerodha's **average cost is adjusted for bonuses/splits**, so "your average cost ÷ Zerodha's
+    ≈ ratio" is now the main evidence (and picks the right answer when several ratios fit the quantities).
+    Table note now says "Quantity differs by N — see Needs your confirmation".
+33. **Owner found** "ALIVUS: 10 shares without an earlier buy" confusing (people sell first, then buy again).
+    Reworded: "You sold 10 ALIVUS shares on DATE, but your files don't show when you bought them… Afterwards you
+    bought N again". A sale covered by a buy-back the same day is labelled **intraday**, not missing history.
 
 ## Where things stand at the end of 12 Nov (updated after item 27)
 

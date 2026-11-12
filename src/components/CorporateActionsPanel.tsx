@@ -278,9 +278,12 @@ function MissingBuysCard({
   const demergerValid = parent && Number(childRatio) > 0 && Number(costPercent) > 0 && Number(costPercent) < 100 && date;
   return (
     <article className="ask-card is-warning">
-      <strong>{suggestion.symbol}: {suggestion.quantity} shares without an earlier buy</strong>
-      <p><b>Why:</b> {suggestion.reason} Without their cost, profit/loss for this stock can&rsquo;t be worked out.</p>
-      <p><b>How did you get them?</b></p>
+      <strong>
+        {suggestion.symbol}: {suggestion.quantity} share{suggestion.quantity === 1 ? "" : "s"} with no purchase record
+      </strong>
+      <p><b>What we see:</b> {suggestion.reason}</p>
+      <p><b>Why it matters:</b> without what you paid for them, the profit/loss on this stock can&rsquo;t be worked out.</p>
+      <p><b>How did you get these {suggestion.quantity} shares, and what did they cost?</b></p>
       <div className="card-form">
         <label>
           How

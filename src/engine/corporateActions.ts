@@ -70,6 +70,8 @@ export interface HoldingQuantity {
   quantity: number;
   /** Zerodha's last price, used to check that a suspected split/bonus shows in the price. */
   lastPrice?: number;
+  /** Zerodha's average cost per share; Zerodha adjusts it for bonuses and splits. */
+  averagePrice?: number;
 }
 
 export type Suggestion =
@@ -126,7 +128,8 @@ export type Suggestion =
     };
 
 const EPS = 1e-6;
-const COMMON_RATIOS = [2, 3, 4, 5, 10, 1.5, 1.25, 1.2, 1.1, 4 / 3, 5 / 3, 2.5, 6, 8, 20];
+// Ordered roughly by how common they are in India (1:1 bonus, ₹10→₹2 split, ₹10→₹1 split, 1:2 bonus, …).
+const COMMON_RATIOS = [2, 5, 10, 1.5, 3, 4, 1.25, 1.2, 1.1, 4 / 3, 5 / 3, 2.5, 6, 8, 20];
 
 function day(iso: string): string {
   return iso.slice(0, 10);
@@ -198,6 +201,44 @@ function unexplainedShares(rows: CanonicalTransaction[], zerodha: number | undef
 
 function priceOf(row: CanonicalTransaction | undefined): number | null {
   return row && (row.kind === "buy" || row.kind === "sell") && row.unitPrice ? row.unitPrice : null;
+}
+
+/** FIFO average cost per share of the shares still held (trade prices; splits/bonuses applied). */
+function openAverage(rows: CanonicalTransaction[]): number | null {
+  const lots: Array<{ quantity: number; price: number }> = [];
+  for (const row of rows) {
+    const quantity = row.quantity ?? 0;
+    if ((row.kind === "buy" || row.kind === "opening-balance") && row.unitPrice) lots.push({ quantity, price: row.unitPrice });
+    else if (row.kind === "opening-balance") return null;
+    else if (row.kind === "sell") {
+      let remaining = quantity;
+      while (remaining > EPS && lots.length > 0) {
+        const lot = lots[0]!;
+        const used = Math.min(lot.quantity, remaining);
+        lot.quantity -= used;
+        remaining -= used;
+        if (lot.quantity <= EPS) lots.shift();
+      }
+    } else if ((row.kind === "split" || row.kind === "bonus") && row.ratio) {
+      for (const lot of lots) {
+        lot.quantity *= row.ratio;
+        lot.price /= row.ratio;
+      }
+    }
+  }
+  const held = lots.reduce((sum, lot) => sum + lot.quantity, 0);
+  return held > EPS ? lots.reduce((sum, lot) => sum + lot.quantity * lot.price, 0) / held : null;
+}
+
+/**
+ * Zerodha divides its average cost by the ratio after a bonus/split. So "your average cost ÷
+ * Zerodha's average cost ≈ ratio" proves it, whatever the market did since. Returns null when
+ * Zerodha's average isn't available.
+ */
+function averageCostEvidence(rows: CanonicalTransaction[], zerodhaAverage: number | undefined, ratio: number): boolean | null {
+  const ours = openAverage(rows);
+  if (!ours || !zerodhaAverage || zerodhaAverage <= 0) return null;
+  return Math.abs(ours / zerodhaAverage / ratio - 1) < 0.12;
 }
 
 /** A real split/bonus divides the share price by about the ratio; trade prices must show that. */
@@ -321,7 +362,7 @@ export function analyseCorporateActions(
           quantity: zerodha,
           beforeDate: previousDay(new Date().toISOString().slice(0, 10)),
           firstSeen: "in Zerodha holdings",
-          reason: `Zerodha shows ${zerodha} shares but your saved trades have none.`,
+          reason: `Zerodha shows ${zerodha} ${symbol} shares, but your tradebook files have no purchase of them — most likely bought before your files start, an IPO allotment, a transfer, or shares from a bonus or demerger.`,
         });
       }
       continue;
@@ -341,6 +382,36 @@ export function analyseCorporateActions(
           } else held -= quantity;
         } else if ((row.kind === "split" || row.kind === "bonus") && row.ratio) held *= row.ratio;
       }
+      // Intraday: the sale was covered by buys later the SAME day (sell first, buy back).
+      const saleDay = day(firstSale.occurredAt);
+      const deficit = (firstSale.quantity ?? 0) - base.heldAtOversell;
+      const boughtBackSameDay = rows
+        .slice(base.firstOversell! + 1)
+        .filter((row) => row.kind === "buy" && day(row.occurredAt) === saleDay)
+        .reduce((sum, row) => sum + (row.quantity ?? 0), 0);
+      if (boughtBackSameDay + EPS >= deficit) {
+        const unexplainedId = `unexplained:${id}`;
+        if (!dismissed.has(unexplainedId)) {
+          suggestions.push({
+            type: "unexplained",
+            id: unexplainedId,
+            instrumentId: id,
+            symbol,
+            date: saleDay,
+            message: `On ${saleDay} you sold ${symbol} first and bought it back the same day — that's an intraday trade, not missing history. Intraday trades aren't matched separately yet, so this stock's figures stay hidden for now.`,
+          });
+        }
+        continue;
+      }
+
+      const soldTotal = rows.filter((row) => row.kind === "sell").reduce((sum, row) => sum + (row.quantity ?? 0), 0);
+      const laterBuys = rows.slice(base.firstOversell! + 1).filter((row) => row.kind === "buy");
+      const laterBought = laterBuys.reduce((sum, row) => sum + (row.quantity ?? 0), 0);
+      const missingQuantity = Math.round(needed * 1e6) / 1e6;
+      const after =
+        laterBuys.length > 0
+          ? ` Afterwards you bought ${laterBought} again (first on ${day(laterBuys[0]!.occurredAt)}).`
+          : ` You haven't bought ${symbol} again since.`;
       const suggestionId = `missing:${id}`;
       if (!dismissed.has(suggestionId)) {
         suggestions.push({
@@ -348,10 +419,13 @@ export function analyseCorporateActions(
           id: suggestionId,
           instrumentId: id,
           symbol,
-          quantity: Math.round(needed * 1e6) / 1e6,
-          beforeDate: previousDay(day(firstSale.occurredAt)),
-          firstSeen: `first sale on ${day(firstSale.occurredAt)}`,
-          reason: `You sold ${symbol} on ${day(firstSale.occurredAt)} without an earlier buy in your files.`,
+          quantity: missingQuantity,
+          beforeDate: previousDay(saleDay),
+          firstSeen: `first sale on ${saleDay}`,
+          reason:
+            `You sold ${firstSale.quantity} ${symbol} shares on ${saleDay}${soldTotal > (firstSale.quantity ?? 0) ? ` (${soldTotal} in total)` : ""}, but your tradebook files don't show when you bought ${missingQuantity} of them. ` +
+            `You can only sell shares you already own, so they were most likely bought before your files start — or came from an IPO, a transfer, a bonus or a demerger.` +
+            after,
         });
       }
       continue;
@@ -380,6 +454,28 @@ export function analyseCorporateActions(
         ratios = exactRatios;
       }
     }
+    if (ratios.length > 1) {
+      // Several ratios fit the quantities: keep only those the cost/price evidence supports.
+      const holdingForEvidence = (holdings ?? []).find((item) => item.isin === id);
+      // Strongest: an event after the last trade whose ratio Zerodha's adjusted average cost confirms.
+      const confirmedByAverage = feasible.filter(
+        (item) => item.at === rows.length && averageCostEvidence(rows, holdingForEvidence?.averagePrice, item.ratio) === true,
+      );
+      const confirmedRatios = [...new Set(confirmedByAverage.map((item) => item.ratio))];
+      const supported = confirmedRatios.length === 1 ? confirmedByAverage : feasible.filter((item) => {
+        const before = [...rows.slice(0, item.at)].reverse().map(priceOf).find((price) => price !== null) ?? null;
+        if (item.at === rows.length) {
+          return averageCostEvidence(rows, holdingForEvidence?.averagePrice, item.ratio) ?? priceSupportsRatio(before, holdingForEvidence?.lastPrice ?? null, item.ratio);
+        }
+        const after = rows.slice(item.at).map(priceOf).find((price) => price !== null) ?? null;
+        return priceSupportsRatio(before, after, item.ratio);
+      });
+      const supportedRatios = [...new Set(supported.map((item) => item.ratio))];
+      if (supportedRatios.length === 1) {
+        feasible = supported;
+        ratios = supportedRatios;
+      }
+    }
     if (ratios.length === 1) {
       const ratio = ratios[0]!;
       const positions = feasible.filter((item) => item.ratio === ratio).map((item) => item.at).sort((a, b) => a - b);
@@ -396,9 +492,13 @@ export function analyseCorporateActions(
       const dayRows = windowTo ? rows.filter((row) => day(row.occurredAt) === windowTo) : [];
       const intraday = dayRows.some((row) => row.kind === "buy") && dayRows.some((row) => row.kind === "sell");
       const before = [...rows.slice(0, at)].reverse().map(priceOf).find((price) => price !== null) ?? null;
-      const zerodhaPrice = (holdings ?? []).find((holding) => holding.isin === id)?.lastPrice ?? null;
+      const holding = (holdings ?? []).find((item) => item.isin === id);
+      const zerodhaPrice = holding?.lastPrice ?? null;
       const after = at < rows.length ? rows.slice(at).map(priceOf).find((price) => price !== null) ?? null : zerodhaPrice;
-      if (sameDay || intraday || !priceSupportsRatio(before, after, ratio)) {
+      // Strongest evidence for shares still held after the event: Zerodha's adjusted average cost.
+      const byAverage = at === rows.length ? averageCostEvidence(rows, holding?.averagePrice, ratio) : null;
+      const evidence = byAverage ?? priceSupportsRatio(before, after, ratio);
+      if (sameDay || intraday || !evidence) {
         const unexplainedId = `unexplained:${id}`;
         if (!dismissed.has(unexplainedId)) {
           suggestions.push({
@@ -424,9 +524,12 @@ export function analyseCorporateActions(
         windowFrom,
         windowTo,
         reason:
-          zerodha !== undefined && holdings !== null
+          (zerodha !== undefined && holdings !== null
             ? `Your trades add up to ${base.ok ? base.finalQuantity : "fewer"} shares but Zerodha shows ${zerodha}. A ${formatRatio(ratio)} explains it exactly.`
-            : `A later sale is bigger than the shares bought. A ${formatRatio(ratio)} explains it exactly.`,
+            : `A later sale is bigger than the shares bought. A ${formatRatio(ratio)} explains it exactly.`) +
+          (byAverage
+            ? ` Zerodha's average cost (₹${holding?.averagePrice?.toFixed(2)}) is your cost divided by ${ratio}, which confirms it.`
+            : " The share price fell by about the same ratio, which confirms it."),
         transaction: {
           transactionId: suggestionId,
           kind: ratio === Math.round(ratio) && ratio >= 2 && [2, 5, 10].includes(ratio) ? "split" : "bonus",

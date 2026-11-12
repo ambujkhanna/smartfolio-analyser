@@ -148,7 +148,7 @@ function rowNote(row: ReconciledHolding, hasHistory: boolean): { text: string; t
   if (row.status === "matched" && row.ledgerAveragePrice !== null) return { text: "History complete", tone: "ok" };
   if (row.status === "matched") return { text: "Some buy costs unknown", tone: "warn" };
   if (row.status === "quantity-mismatch" && row.difference !== null) {
-    return { text: `Earlier trades missing (${quantity.format(Math.abs(row.difference))} units differ)`, tone: "warn" };
+    return { text: `Quantity differs by ${quantity.format(Math.abs(row.difference))} — see Needs your confirmation`, tone: "warn" };
   }
   return { text: "No buys found in history", tone: "warn" };
 }
