@@ -24,7 +24,7 @@ No secret values belong in this file or anywhere in Git. This section lists *whe
 | Vercel environment variables | https://vercel.com/ambujkhannas-projects/smartfolio-analyser/settings/environment-variables |
 | **Preview (testing) — stable branch alias** for `feat/reliable-pnl-foundation` | https://smartfolio-analyser-git-feat-relia-b98862-ambujkhannas-projects.vercel.app (behind Vercel login) |
 | **Preview — Claude work branch** `claude/phase0-stabilise` (new home screen, .xlsx import, splits/bonus) | https://smartfolio-analyser-git-claude-pha-f1aef4-ambujkhannas-projects.vercel.app (behind Vercel login; Zerodha login does not work here, see below) |
-| Production alias | https://smartfolio-analyser.vercel.app — ⚠️ publicly reachable and still serves an **early feature-branch build**; not the current app. `main` maps to Production but holds no app code yet |
+| Production alias (final address for personal use) | https://smartfolio-analyser.vercel.app — built from `main`. Until `main` is updated it serves an **early build**. Protected by `APP_ACCESS_CODE` once set (see [docs/PRODUCTION_SETUP.md](docs/PRODUCTION_SETUP.md)) |
 | GitHub Actions (lint, tests, build) | https://github.com/ambujkhanna/smartfolio-analyser/actions |
 | Kite Connect developer console (Zerodha app, redirect URL) | https://developers.kite.trade/ |
 | Upstox developer apps (Analytics Token) | https://account.upstox.com/developer/apps |
@@ -37,15 +37,16 @@ The page footer shows `Build <commit> · <environment>`, and `/api/version` retu
 
 ### Environment variables
 
-All are set in Vercel, **Preview only** until a production release is approved. Copy [.env.example](.env.example) to `.env.local` for local development.
+Set in Vercel. For the owner-only Production setup (one fixed URL, configured once) follow [docs/PRODUCTION_SETUP.md](docs/PRODUCTION_SETUP.md). Copy [.env.example](.env.example) to `.env.local` for local development.
 
 | Variable | Purpose | Vercel type | Where the value comes from |
 |---|---|---|---|
 | `KITE_API_KEY` | Zerodha Kite Connect app key | Secret | Kite developer console (Personal — Free app) |
 | `KITE_API_SECRET` | Zerodha Kite Connect app secret | Secret | Kite developer console |
-| `KITE_REDIRECT_URL` | OAuth callback; must match the Kite console exactly | Plain config | `https://smartfolio-analyser-git-feat-relia-b98862-ambujkhannas-projects.vercel.app/api/zerodha/callback` |
+| `APP_ACCESS_CODE` | Free owner-only gate: every page asks for this code once per browser (remembered 1 year). Unset = gate off | Secret | A long passphrase you choose |
+| `KITE_REDIRECT_URL` | OAuth callback; must match the Kite console exactly. Login started on any other site is forwarded here | Plain config | Final: `https://smartfolio-analyser.vercel.app/api/zerodha/callback` (until the switch: the `feat` preview alias) |
 | `KITE_SESSION_ENCRYPTION_KEY` | Encrypts the Kite session cookie (AES-256-GCM) | Secret | Generate: `openssl rand -base64 32` |
-| `SMARTFOLIO_ACCESS_KEY` | Protects `/api/quotes`; entered in the app UI to fetch quotes | Secret | Generate (≥32 chars), e.g. PowerShell `[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` |
+| `SMARTFOLIO_ACCESS_KEY` | Alternative key for `/api/quotes`; not needed in the browser once signed in with `APP_ACCESS_CODE` | Secret | Generate (≥32 chars), e.g. PowerShell `[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` |
 | `UPSTOX_ANALYTICS_TOKEN` | Equity/ETF quotes (Upstox Market Quote V3) | Secret | Upstox developer apps → Analytics tab; valid ~1 year, read-only |
 
 AMFI mutual-fund NAVs need no credentials. Vercel supplies `VERCEL_GIT_COMMIT_SHA`, `VERCEL_GIT_COMMIT_REF` and `VERCEL_ENV` automatically (used only for the build label).

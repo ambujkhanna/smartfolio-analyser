@@ -315,8 +315,8 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
     if (!analysis || !result) return;
     setQuoteError(null);
 
-    if (accessKey.trim().length < 32) {
-      setQuoteError("Enter the 32+ character Smartfolio access key configured in the server environment. Do not enter the Upstox token here.");
+    if (accessKey.trim() && accessKey.trim().length < 32) {
+      setQuoteError("The Smartfolio access key is 32+ characters. Leave it empty if you signed in with the access code. Do not enter the Upstox token here.");
       return;
     }
 
@@ -349,7 +349,7 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + accessKey.trim(),
+            ...(accessKey.trim() ? { Authorization: "Bearer " + accessKey.trim() } : {}),
           },
           body: JSON.stringify({ references: batch }),
         });
@@ -580,10 +580,10 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
                   <div>
                     <strong>Fetch validated market quotes</strong>
                     <p>
-                      Requires server-side <code>SMARTFOLIO_ACCESS_KEY</code>. Equity/ETF quotes also require <code>UPSTOX_ANALYTICS_TOKEN</code>; mutual-fund NAVs use AMFI. The access key below is held in memory only; never enter the Upstox token here.
+                      Equity/ETF quotes use the server&rsquo;s Upstox token; mutual-fund NAVs use AMFI. If you signed in with the access code, just click the button. Otherwise enter the Smartfolio access key (held in memory only; never enter the Upstox token here).
                     </p>
                   </div>
-                  <label htmlFor="smartfolio-access-key">Smartfolio access key
+                  <label htmlFor="smartfolio-access-key">Smartfolio access key (optional)
                     <input
                       id="smartfolio-access-key"
                       type="password"
@@ -597,7 +597,7 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
                     type="button"
                     className="secondary-action-button"
                     onClick={handleFetchLiveQuotes}
-                    disabled={isFetchingQuotes || accessKey.trim().length < 32}
+                    disabled={isFetchingQuotes}
                   >
                     {isFetchingQuotes ? "Fetching quotes…" : "Fetch live quotes"}
                   </button>

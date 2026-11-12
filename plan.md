@@ -261,6 +261,17 @@ This is an executable task plan. Complete one task at a time. After each task, u
 - [ ] Update the pull request with implemented scope and known gaps.
 - [ ] Merge only after review and checks; never claim merge/deployment without confirmation.
 
+### Task 7.4 — Owner-only Production (added 12 Nov 2026)
+- [x] Free access-code gate (`APP_ACCESS_CODE`, middleware, 1-year cookie) because Vercel Hobby does not protect the Production domain.
+- [x] Zerodha login always runs on the registered redirect site, so one fixed redirect URL works from any deployment.
+- [ ] Owner sets Production env vars and the Kite redirect once, then `main` is updated (see docs/PRODUCTION_SETUP.md).
+
+### Task 7.5 — TODO (future): share with a closed group of friends
+- [ ] Per-user sign-in instead of one shared access code.
+- [ ] Separate stored data per user (depends on the Phase 3 database).
+- [ ] Confirm whether a Kite Connect Personal (free) app may be used by other people's Zerodha accounts; otherwise each friend uses their own Kite app or a paid plan.
+- [ ] Decide hosting/cost (Vercel Hobby is for personal, non-commercial use).
+
 **Exit gate:** The release meets documented acceptance criteria and clearly discloses unsupported cases.
 
 ## Task completion template

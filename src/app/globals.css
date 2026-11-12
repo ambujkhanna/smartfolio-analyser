@@ -563,3 +563,14 @@ h3 {
 @media (max-width: 720px) {
   .platform-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Private access gate */
+.access-card { max-width: 440px; margin: 64px auto; }
+.access-form { display: grid; gap: 10px; }
+.access-form label { font-size: 13px; font-weight: 600; }
+.access-form input[type="password"] {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+}

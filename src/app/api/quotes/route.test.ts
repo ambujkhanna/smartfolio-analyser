@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
+import { accessToken } from "../../../lib/siteAccess";
 import { AMFI_NAV_FEED_URL } from "../../../market-data/amfiNavFeed";
 import { UPSTOX_INSTRUMENT_MASTER_URL } from "../../../market-data/upstoxInstrumentMaster";
 
@@ -119,5 +120,18 @@ describe("POST /api/quotes access controls", () => {
     vi.stubEnv("UPSTOX_ANALYTICS_TOKEN", "provider-token-not-used-in-test");
     const response = await POST(request("not-json", `Bearer ${accessKey}`, "192.0.2.12"));
     expect(response.status).toBe(400);
+  });
+
+  it("lets a browser that passed the access gate through without a separate key", async () => {
+    vi.stubEnv("APP_ACCESS_CODE", "my private passphrase");
+    vi.stubEnv("SMARTFOLIO_ACCESS_KEY", "");
+    vi.stubEnv("UPSTOX_ANALYTICS_TOKEN", "provider-token-not-used-in-test");
+    const signedIn = request("not-json", undefined, "192.0.2.13");
+    signedIn.headers.set("cookie", "smartfolio_access=" + (await accessToken("my private passphrase")));
+    expect((await POST(signedIn)).status).toBe(400);
+
+    const wrongCookie = request("not-json", undefined, "192.0.2.14");
+    wrongCookie.headers.set("cookie", "smartfolio_access=" + (await accessToken("another code")));
+    expect((await POST(wrongCookie)).status).toBe(503);
   });
 });

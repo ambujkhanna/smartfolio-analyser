@@ -9,6 +9,7 @@ import { loadAmfiNavFeed } from "../../../market-data/amfiNavFeed";
 import { getAmfiNavQuote } from "../../../market-data/amfiNav";
 import { loadUpstoxInstrumentMaster } from "../../../market-data/upstoxInstrumentMaster";
 import { isValidAccessKey } from "../../../market-data/accessControl";
+import { ACCESS_COOKIE, hasSiteAccess, readCookie } from "../../../lib/siteAccess";
 import { fetchUpstoxQuotes } from "../../../market-data/upstox";
 import type { QuoteValidation } from "../../../domain/quote";
 
@@ -168,20 +169,28 @@ export async function POST(request: Request): Promise<Response> {
 
   const accessKey = process.env.SMARTFOLIO_ACCESS_KEY;
   const token = process.env.UPSTOX_ANALYTICS_TOKEN;
-  if (!accessKey || accessKey.length < 32) {
-    return Response.json(
-      { error: "Quote access is not configured. Set SMARTFOLIO_ACCESS_KEY (32+ random characters) in the server environment." },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
-    );
-  }
+  // A visitor who already passed the site access gate needs no separate key.
+  const siteCode = process.env.APP_ACCESS_CODE;
+  const passedSiteGate = siteCode
+    ? await hasSiteAccess(readCookie(request.headers.get("cookie"), ACCESS_COOKIE), siteCode)
+    : false;
 
-  const authorization = request.headers.get("authorization") ?? "";
-  const authorizationMatch = authorization.match(/^Bearer\s+(.+)$/i);
-  if (!isValidAccessKey(authorizationMatch?.[1], accessKey)) {
-    return Response.json(
-      { error: "Quote access denied. Check the Smartfolio access key." },
-      { status: 401, headers: { "Cache-Control": "no-store" } },
-    );
+  if (!passedSiteGate) {
+    if (!accessKey || accessKey.length < 32) {
+      return Response.json(
+        { error: "Quote access is not configured. Set APP_ACCESS_CODE or SMARTFOLIO_ACCESS_KEY (32+ random characters) in the server environment." },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    const authorization = request.headers.get("authorization") ?? "";
+    const authorizationMatch = authorization.match(/^Bearer\s+(.+)$/i);
+    if (!isValidAccessKey(authorizationMatch?.[1], accessKey)) {
+      return Response.json(
+        { error: "Quote access denied. Check the Smartfolio access key." },
+        { status: 401, headers: { "Cache-Control": "no-store" } },
+      );
+    }
   }
 
   const contentLength = Number(request.headers.get("content-length") ?? "0");
