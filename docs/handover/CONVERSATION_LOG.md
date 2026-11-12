@@ -105,6 +105,12 @@ orders and trades in Preview; recurring problem of the branch alias serving a st
     Not checked) with details on hover, and a "Checked against Zerodha" panel listing mismatches with both figures.
 37. **Owner asked** the price of Zerodha's paid API with history → Kite Connect paid is ₹500/month and adds live/
     historical *prices*, not past trades; no Zerodha API gives past trades (decision D2 stands).
+38. **Owner asked** to be asked for a breakdown whenever quantities don't match, stored so it's never asked again.
+    Built: "Explain the difference" form on every quantity card — multiple lines, running "Explained X of Y" total,
+    saves only when balanced. In: IPO, bought before files, transfer in, gift received, bonus/split, demerger.
+    Out (new): buyback/open offer/delisting (price), sold outside the files (price), transferred out/gifted
+    (new `transfer-out` entry: shares leave at cost, no P&L). Answers are saved entries ("Your confirmation") in the
+    browser + backups, survive tradebook re-uploads, listed under "Your saved answers" with Undo.
 
 ## Where things stand at the end of 12 Nov (updated after item 27)
 

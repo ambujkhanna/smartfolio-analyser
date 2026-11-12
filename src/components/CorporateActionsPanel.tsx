@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { CanonicalTransaction } from "../domain/transaction";
 import { formatRatio, knownDemergerTransaction, type Suggestion } from "../engine/corporateActions";
+import BreakdownForm from "./BreakdownForm";
 
 /**
  * "Needs your confirmation": corporate actions and missing purchases found in the
@@ -16,8 +17,12 @@ export interface CorporateActionsPanelProps {
   instruments: Array<{ instrumentId: string; label: string }>;
   labelOf: (instrumentId: string) => string;
   onApply: (transaction: CanonicalTransaction) => void;
+  /** Saves several answers at once (a breakdown). */
+  onApplyMany: (transactions: CanonicalTransaction[]) => void;
   onDismiss: (suggestionId: string) => void;
   onUndo: (transactionId: string) => void;
+  /** All saved trades (the breakdown form needs shares held on a date). */
+  transactions: CanonicalTransaction[];
 }
 
 const percent = new Intl.NumberFormat("en-IN", { style: "percent", maximumFractionDigits: 2 });
@@ -30,6 +35,8 @@ function describeAdjustment(transaction: CanonicalTransaction, labelOf: (id: str
     return `${name} demerger on ${date}: ${name} keeps ${percent.format(transaction.demerger.parentCostFraction)} of cost; ${parts.join(", ")}`;
   }
   if (transaction.kind === "split" || transaction.kind === "bonus") return `${name}: ${formatRatio(transaction.ratio ?? 1)} around ${date}`;
+  if (transaction.kind === "transfer-out") return `${name}: ${transaction.quantity} shares moved out on ${date}${transaction.note ? ` — ${transaction.note}` : ""}`;
+  if (transaction.kind === "sell") return `${name}: ${transaction.quantity} shares sold at ₹${transaction.unitPrice} on ${date}${transaction.note ? ` — ${transaction.note}` : ""}`;
   if (transaction.kind === "opening-balance") {
     return `${name}: ${transaction.quantity} shares added on ${date}${transaction.unitPrice ? ` at ₹${transaction.unitPrice} each` : " (cost unknown)"}${transaction.note ? ` — ${transaction.note}` : ""}`;
   }
@@ -67,7 +74,7 @@ export default function CorporateActionsPanel(props: CorporateActionsPanelProps)
       </div>
       {adjustments.length > 0 ? (
         <details className="adjustments">
-          <summary>Adjustments you&rsquo;ve confirmed ({adjustments.length})</summary>
+          <summary>Your saved answers ({adjustments.length}) — kept in this browser and in backups</summary>
           <ul>
             {adjustments.map((transaction) => (
               <li key={transaction.transactionId}>
@@ -84,7 +91,7 @@ export default function CorporateActionsPanel(props: CorporateActionsPanelProps)
   );
 }
 
-function SuggestionCard({ suggestion, instruments, labelOf, onApply, onDismiss }: CorporateActionsPanelProps & { suggestion: Suggestion }) {
+function SuggestionCard({ suggestion, instruments, labelOf, onApply, onApplyMany, onDismiss, transactions }: CorporateActionsPanelProps & { suggestion: Suggestion }) {
   if (suggestion.type === "split-bonus") {
     return (
       <article className="ask-card">
@@ -103,22 +110,38 @@ function SuggestionCard({ suggestion, instruments, labelOf, onApply, onDismiss }
   }
   if (suggestion.type === "unexplained") {
     return (
-      <article className="ask-card is-neutral">
+      <article className={"ask-card " + (suggestion.intraday ? "is-neutral" : "is-warning")}>
         <strong>{suggestion.symbol}: quantities don&rsquo;t add up</strong>
         <p>{suggestion.message}</p>
-        <p className="home-note">
-          Nothing will be changed automatically. Real cost and recovery figures for this stock stay hidden until it&rsquo;s
-          explained. If you did intraday trades that day, let us know — intraday handling is planned.
-        </p>
+        {suggestion.intraday ? (
+          <p className="home-note">
+            Nothing will be changed automatically. This stock&rsquo;s figures stay hidden until intraday matching is added.
+          </p>
+        ) : (
+          <>
+            <p><b>Please explain the difference</b> — break it down in as many lines as needed:</p>
+            <BreakdownForm
+              instrumentId={suggestion.instrumentId}
+              symbol={suggestion.symbol}
+              difference={suggestion.difference}
+              {...(suggestion.date ? { beforeDate: suggestion.date } : {})}
+              transactions={transactions}
+              instruments={instruments}
+              onSave={onApplyMany}
+            />
+          </>
+        )}
         <div className="card-actions">
-          <button type="button" className="link-button" onClick={() => onDismiss(suggestion.id)}>OK, hide this</button>
+          <button type="button" className="link-button" onClick={() => onDismiss(suggestion.id)}>{suggestion.intraday ? "OK, hide this" : "Ignore"}</button>
         </div>
       </article>
     );
   }
   if (suggestion.type === "known-demerger") return <KnownDemergerCard suggestion={suggestion} labelOf={labelOf} onApply={onApply} onDismiss={onDismiss} />;
-  if (suggestion.type === "quantity-mismatch") return <MismatchCard suggestion={suggestion} onApply={onApply} onDismiss={onDismiss} />;
-  return <MissingBuysCard suggestion={suggestion} instruments={instruments} onApply={onApply} onDismiss={onDismiss} />;
+  if (suggestion.type === "quantity-mismatch") {
+    return <MismatchCard suggestion={suggestion} instruments={instruments} transactions={transactions} onApplyMany={onApplyMany} onDismiss={onDismiss} />;
+  }
+  return <MissingBuysCard suggestion={suggestion} instruments={instruments} transactions={transactions} onApplyMany={onApplyMany} onDismiss={onDismiss} />;
 }
 
 function KnownDemergerCard({
@@ -199,83 +222,42 @@ function KnownDemergerCard({
   );
 }
 
-function MismatchCard({
-  suggestion,
-  onApply,
-  onDismiss,
-}: {
-  suggestion: Extract<Suggestion, { type: "quantity-mismatch" }>;
-  onApply: (transaction: CanonicalTransaction) => void;
+interface BreakdownCardProps {
+  instruments: Array<{ instrumentId: string; label: string }>;
+  transactions: CanonicalTransaction[];
+  onApplyMany: (transactions: CanonicalTransaction[]) => void;
   onDismiss: (id: string) => void;
-}) {
-  const [ratio, setRatio] = useState("");
-  const [date, setDate] = useState("");
-  const value = Number(ratio);
+}
+
+function MismatchCard({ suggestion, instruments, transactions, onApplyMany, onDismiss }: BreakdownCardProps & { suggestion: Extract<Suggestion, { type: "quantity-mismatch" }> }) {
+  const difference = suggestion.zerodhaQuantity - suggestion.tradesQuantity;
   return (
     <article className="ask-card is-warning">
-      <strong>{suggestion.symbol}: your trades add up to {suggestion.tradesQuantity} shares, Zerodha shows {suggestion.zerodhaQuantity}</strong>
-      <p><b>Why it matters:</b> real cost and recovery figures for this stock are hidden until the quantities match.</p>
+      <strong>
+        {suggestion.symbol}: your trades add up to {suggestion.tradesQuantity} shares, Zerodha shows {suggestion.zerodhaQuantity}
+      </strong>
       <p>
-        <b>How:</b> if there was a split or bonus, enter the shares you had <i>after</i> per share <i>before</i> (1:1 bonus = 2, 1:2
-        bonus = 1.5, ₹10→₹2 split = 5) and the date. If shares came in another way, upload the missing tradebook period.
+        <b>{Math.abs(difference)} share{Math.abs(difference) === 1 ? "" : "s"}</b>{" "}
+        {difference > 0 ? "came into your account without a purchase in your files" : "left your account without a sale in your files"}.
+        Real cost and recovery figures for this stock are hidden until that&rsquo;s explained.
       </p>
-      <div className="card-form">
-        <label>Ratio <input inputMode="decimal" value={ratio} onChange={(event) => setRatio(event.target.value)} placeholder="e.g. 2" /></label>
-        <label>Date <input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
-        <button
-          type="button"
-          className="calculate-button"
-          disabled={!(value > 0 && value !== 1) || !date}
-          onClick={() =>
-            onApply({
-              transactionId: `manual-split:${suggestion.instrumentId}:${date}`,
-              kind: value >= 2 && Number.isInteger(value) ? "split" : "bonus",
-              instrumentId: suggestion.instrumentId,
-              symbol: suggestion.symbol,
-              occurredAt: `${date}T00:00:00+05:30`,
-              currency: "INR",
-              ratio: value,
-              note: "Entered by you",
-              source: { fileName: "Your confirmation", rowNumber: 1 },
-            })
-          }
-        >
-          Apply
-        </button>
+      <p><b>Please explain the difference</b> — break it down in as many lines as needed:</p>
+      <BreakdownForm
+        instrumentId={suggestion.instrumentId}
+        symbol={suggestion.symbol}
+        difference={difference}
+        transactions={transactions}
+        instruments={instruments}
+        onSave={onApplyMany}
+      />
+      <div className="card-actions">
         <button type="button" className="link-button" onClick={() => onDismiss(suggestion.id)}>Ignore</button>
       </div>
     </article>
   );
 }
 
-function MissingBuysCard({
-  suggestion,
-  instruments,
-  onApply,
-  onDismiss,
-}: {
-  suggestion: Extract<Suggestion, { type: "missing-buys" }>;
-  instruments: Array<{ instrumentId: string; label: string }>;
-  onApply: (transaction: CanonicalTransaction) => void;
-  onDismiss: (id: string) => void;
-}) {
-  const [how, setHow] = useState(suggestion.filesStart && suggestion.filesStart < suggestion.beforeDate ? "ipo" : "before-files");
-  const [quantity, setQuantity] = useState(String(suggestion.quantity));
-  const [price, setPrice] = useState("");
-  const [date, setDate] = useState(suggestion.beforeDate);
-  const [parent, setParent] = useState(instruments.find((item) => item.instrumentId !== suggestion.instrumentId)?.instrumentId ?? "");
-  const [childRatio, setChildRatio] = useState("1");
-  const [costPercent, setCostPercent] = useState("");
-  const qty = Number(quantity);
-  const unitPrice = price.trim() === "" ? undefined : Number(price);
-  const label: Record<string, string> = {
-    ipo: "IPO allotment",
-    "before-files": "Bought before my tradebook files start",
-    transfer: "Transferred in from another account",
-    gift: "Gift / inheritance",
-    demerger: "Received from a demerger of another stock",
-  };
-  const demergerValid = parent && Number(childRatio) > 0 && Number(costPercent) > 0 && Number(costPercent) < 100 && date;
+function MissingBuysCard({ suggestion, instruments, transactions, onApplyMany, onDismiss }: BreakdownCardProps & { suggestion: Extract<Suggestion, { type: "missing-buys" }> }) {
   return (
     <article className="ask-card is-warning">
       <strong>
@@ -284,7 +266,7 @@ function MissingBuysCard({
       <table className="mini-table count-table">
         <tbody>
           <tr><td>Bought (in your tradebook files)</td><td>{suggestion.counts.bought}</td></tr>
-          <tr><td>Sold (in your tradebook files)</td><td>{suggestion.counts.sold}</td></tr>
+          <tr><td>Sold or moved out (in your files)</td><td>{suggestion.counts.sold}</td></tr>
           <tr><td>Held now (Zerodha)</td><td>{suggestion.counts.heldNow ?? "not connected"}</td></tr>
           <tr className="count-total"><td>No purchase record (sold + held − bought)</td><td>{suggestion.quantity}</td></tr>
         </tbody>
@@ -295,80 +277,18 @@ function MissingBuysCard({
         file{suggestion.filesStart ? <> (your files start on {suggestion.filesStart})</> : null}, transfers from another
         account, or bonus/demerger shares.
       </p>
-      <p><b>Why it matters:</b> without what you paid for them, the profit/loss on this stock can&rsquo;t be worked out.</p>
-      <p><b>How did you get these {suggestion.quantity} shares, and what did they cost?</b></p>
-      <div className="card-form">
-        <label>
-          How
-          <select value={how} onChange={(event) => setHow(event.target.value)}>
-            {Object.entries(label).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-        </label>
-        {how === "demerger" ? (
-          <>
-            <label>
-              From which stock
-              <select value={parent} onChange={(event) => setParent(event.target.value)}>
-                {instruments.filter((item) => item.instrumentId !== suggestion.instrumentId).map((item) => (
-                  <option key={item.instrumentId} value={item.instrumentId}>{item.label}</option>
-                ))}
-              </select>
-            </label>
-            <label>Ex-date <input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
-            <label>New shares per share held <input inputMode="decimal" value={childRatio} onChange={(event) => setChildRatio(event.target.value)} /></label>
-            <label>
-              % of original cost moved (from the company&rsquo;s notice)
-              <input inputMode="decimal" value={costPercent} onChange={(event) => setCostPercent(event.target.value)} placeholder="e.g. 31.15" />
-            </label>
-          </>
-        ) : (
-          <>
-            <label>Shares <input inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
-            <label>
-              Cost per share (₹){" "}
-              <input inputMode="decimal" value={price} onChange={(event) => setPrice(event.target.value)} placeholder={how === "gift" ? "giver's cost" : "leave empty if unknown"} />
-            </label>
-            <label>Date acquired <input type="date" value={date} max={suggestion.beforeDate} onChange={(event) => setDate(event.target.value)} /></label>
-          </>
-        )}
-        <button
-          type="button"
-          className="calculate-button"
-          disabled={how === "demerger" ? !demergerValid : !(qty > 0) || (unitPrice !== undefined && !(unitPrice > 0)) || !date}
-          onClick={() => {
-            if (how === "demerger") {
-              const fraction = Number(costPercent) / 100;
-              onApply({
-                transactionId: `manual-demerger:${parent}:${suggestion.instrumentId}:${date}`,
-                kind: "demerger",
-                instrumentId: parent,
-                occurredAt: `${date}T00:00:00+05:30`,
-                currency: "INR",
-                demerger: {
-                  parentCostFraction: 1 - fraction,
-                  children: [{ instrumentId: suggestion.instrumentId, ratio: Number(childRatio), costFraction: fraction, symbol: suggestion.symbol }],
-                },
-                note: "Entered by you",
-                source: { fileName: "Your confirmation", rowNumber: 1 },
-              });
-              return;
-            }
-            onApply({
-              transactionId: `manual-opening:${suggestion.instrumentId}:${date}`,
-              kind: "opening-balance",
-              instrumentId: suggestion.instrumentId,
-              symbol: suggestion.symbol,
-              occurredAt: `${date}T00:00:00+05:30`,
-              currency: "INR",
-              quantity: qty,
-              ...(unitPrice !== undefined ? { unitPrice } : {}),
-              note: label[how],
-              source: { fileName: "Your confirmation", rowNumber: 1 },
-            });
-          }}
-        >
-          Save
-        </button>
+      <p><b>How did you get these {suggestion.quantity} shares?</b> Break it down in as many lines as needed:</p>
+      <BreakdownForm
+        instrumentId={suggestion.instrumentId}
+        symbol={suggestion.symbol}
+        difference={suggestion.quantity}
+        beforeDate={suggestion.beforeDate}
+        defaultType={suggestion.filesStart && suggestion.filesStart < suggestion.beforeDate ? "ipo" : "before-files"}
+        transactions={transactions}
+        instruments={instruments}
+        onSave={onApplyMany}
+      />
+      <div className="card-actions">
         <button type="button" className="link-button" onClick={() => onDismiss(suggestion.id)}>Ignore</button>
       </div>
     </article>

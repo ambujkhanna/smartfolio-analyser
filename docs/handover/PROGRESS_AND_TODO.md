@@ -42,6 +42,8 @@
 - [x] **Verification against Zerodha**: P&L statement import; per-stock status badge + "Checked against Zerodha"
       panel (verified / needs answer / doesn't match / not checked) using holdings (shares, average cost) and P&L
       statements (booked P&L per period, shares and cost at period end). Statements saved in browser and backups.
+- [x] "Explain the difference" breakdown form on every quantity card (in and out reasons, multi-line, balanced
+      before saving); new `transfer-out` entry; answers saved permanently and listed with Undo.
 - [x] Build label (commit + environment) in the footer and `/api/version`.
 
 ### Hosting and security

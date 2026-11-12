@@ -1,7 +1,7 @@
-export type TransactionKind = "buy" | "sell" | "opening-balance" | "fee" | "dividend" | "split" | "bonus" | "demerger";
+export type TransactionKind = "buy" | "sell" | "opening-balance" | "fee" | "dividend" | "split" | "bonus" | "demerger" | "transfer-out";
 
 /** Kinds that change the quantity held of a specific instrument. */
-export const QUANTITY_KINDS: readonly TransactionKind[] = ["buy", "sell", "opening-balance", "split", "bonus", "demerger"];
+export const QUANTITY_KINDS: readonly TransactionKind[] = ["buy", "sell", "opening-balance", "split", "bonus", "demerger", "transfer-out"];
 
 /**
  * Demerger: for every share of the parent held at the ex-date, the holder receives
@@ -66,6 +66,7 @@ const transactionKinds: readonly TransactionKind[] = [
   "split",
   "bonus",
   "demerger",
+  "transfer-out",
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -149,7 +150,7 @@ export function validateTransaction(input: unknown): TransactionValidation {
     addIssue("currency", "Currency must be a three-letter uppercase code such as INR.");
   }
 
-  if (["buy", "sell", "opening-balance"].includes(kind)) {
+  if (["buy", "sell", "opening-balance", "transfer-out"].includes(kind)) {
     if (!isPositiveFiniteNumber(input.quantity)) {
       addIssue("quantity", "Quantity must be a finite positive number.");
     }

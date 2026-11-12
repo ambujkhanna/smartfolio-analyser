@@ -321,6 +321,11 @@ export default function HomeApp() {
     const added = await addTrades([transaction]);
     setStoreMessage(added > 0 ? "Adjustment saved. Figures updated." : "That adjustment was already saved.");
   }
+  async function applyAnswers(entries: CanonicalTransaction[]) {
+    const added = await addTrades(entries);
+    const name = entries[0]?.symbol ?? labelOf(entries[0]?.instrumentId ?? "");
+    setStoreMessage(added > 0 ? `Saved your answer for ${name} (${added} entr${added === 1 ? "y" : "ies"}). It's kept in this browser and in backups.` : "Those answers were already saved.");
+  }
   async function undoAdjustment(transactionId: string) {
     await persist({ ...savedRef.current, transactions: removeTransactions(savedRef.current.transactions, new Set([transactionId])), updatedAt: new Date().toISOString() });
     setStoreMessage("Adjustment removed.");
@@ -471,6 +476,8 @@ export default function HomeApp() {
         instruments={(ledger?.instruments ?? []).map((instrument) => ({ instrumentId: instrument.instrumentId, label: labelOf(instrument.instrumentId) }))}
         labelOf={labelOf}
         onApply={(transaction) => void applyAdjustment(transaction)}
+        onApplyMany={(entries) => void applyAnswers(entries)}
+        transactions={saved.transactions}
         onDismiss={(id) => void dismissSuggestion(id)}
         onUndo={(id) => void undoAdjustment(id)}
       />

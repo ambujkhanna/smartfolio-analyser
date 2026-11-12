@@ -313,6 +313,39 @@ export function buildLedger(input: unknown[]): LedgerResult {
       continue;
     }
 
+    if (transaction.kind === "transfer-out") {
+      // Shares leave the account without a sale (transfer to another account, gift given):
+      // their FIFO cost leaves with them; no proceeds and no profit/loss.
+      const ledger = getLedger(instrumentId as string);
+      const quantity = transaction.quantity as number;
+      const openQuantity = ledger.lots.reduce((sum, lot) => sum + lot.remainingQuantity, 0);
+      if (quantity > openQuantity + 1e-9) {
+        rejectedTransactionCount += 1;
+        errors.push({
+          code: "OVERSELL",
+          transactionId: transaction.transactionId,
+          instrumentId,
+          message: `Transfer out of ${quantity} exceeds the ${openQuantity} shares held for ${instrumentId}; it was not applied.`,
+        });
+        continue;
+      }
+      let remaining = quantity;
+      for (const lot of ledger.lots) {
+        if (remaining <= 1e-9) break;
+        if (lot.remainingQuantity <= 1e-9) continue;
+        const used = Math.min(lot.remainingQuantity, remaining);
+        if (lot.remainingCostTotal !== null) {
+          const cost = lot.remainingCostTotal * (used / lot.remainingQuantity);
+          lot.remainingCostTotal -= cost;
+          ledger.costTransferredOut += cost;
+        }
+        lot.remainingQuantity -= used;
+        remaining -= used;
+      }
+      ledger.lots = ledger.lots.filter((lot) => lot.remainingQuantity > 1e-9);
+      continue;
+    }
+
     if (transaction.kind === "sell") {
       const ledger = getLedger(instrumentId as string);
       const quantity = transaction.quantity as number;

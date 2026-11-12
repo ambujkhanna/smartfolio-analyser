@@ -704,3 +704,11 @@ h3 {
 .statement-list { margin: 8px 0 0; padding-left: 18px; font-size: 13px; display: grid; gap: 4px; }
 .statement-list button { margin-left: 8px; }
 .file-button { display: inline-block; cursor: pointer; margin-top: 6px; }
+
+/* Breakdown form */
+.breakdown { display: grid; gap: 6px; margin-top: 6px; }
+.breakdown-line { padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; background: #fff; margin-top: 0; }
+.breakdown-error { flex-basis: 100%; color: #b42318; font-size: 12px; }
+.breakdown-total { font-size: 13px; font-weight: 600; }
+.breakdown-total.is-ok { color: #17603f; }
+.breakdown-total.is-warn { color: #8a5a16; }

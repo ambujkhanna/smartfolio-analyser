@@ -105,6 +105,10 @@ export type Suggestion =
       symbol: string;
       date: string | null;
       message: string;
+      /** Same-day sell-then-buy: needs intraday matching, not a breakdown. */
+      intraday: boolean;
+      /** Shares to explain: + came in without a purchase record, − left without a sale; null if unknown. */
+      difference: number | null;
     }
   | {
       type: "quantity-mismatch";
@@ -174,7 +178,7 @@ function simulate(rows: CanonicalTransaction[], ratio = 1, at = -1): Simulation 
     const row = rows[index]!;
     const quantity = row.quantity ?? 0;
     if (row.kind === "buy" || row.kind === "opening-balance") held += quantity;
-    else if (row.kind === "sell") {
+    else if (row.kind === "sell" || row.kind === "transfer-out") {
       if (quantity > held + EPS) return { ok: false, finalQuantity: held, firstOversell: index, heldAtOversell: held };
       held -= quantity;
     } else if ((row.kind === "split" || row.kind === "bonus") && row.ratio) held *= row.ratio;
@@ -192,7 +196,7 @@ function unexplainedShares(rows: CanonicalTransaction[], zerodha: number | undef
   for (const row of rows) {
     const quantity = row.quantity ?? 0;
     if (row.kind === "buy" || row.kind === "opening-balance") held += quantity;
-    else if (row.kind === "sell") {
+    else if (row.kind === "sell" || row.kind === "transfer-out") {
       if (quantity > held + EPS) {
         needed += quantity - held;
         held = 0;
@@ -214,7 +218,7 @@ function openAverage(rows: CanonicalTransaction[]): number | null {
     const quantity = row.quantity ?? 0;
     if ((row.kind === "buy" || row.kind === "opening-balance") && row.unitPrice) lots.push({ quantity, price: row.unitPrice });
     else if (row.kind === "opening-balance") return null;
-    else if (row.kind === "sell") {
+    else if (row.kind === "sell" || row.kind === "transfer-out") {
       let remaining = quantity;
       while (remaining > EPS && lots.length > 0) {
         const lot = lots[0]!;
@@ -252,6 +256,14 @@ function priceSupportsRatio(before: number | null, after: number | null, ratio: 
   return observed >= ratio / 1.6 && observed <= ratio * 1.6 && observed > 1.08;
 }
 
+/** Shares of one stock held just before a date (start of that day), from saved trades. */
+export function heldBefore(transactions: CanonicalTransaction[], instrumentId: string, date: string): number {
+  const rows = [...transactions]
+    .filter((row) => row.instrumentId === instrumentId && row.occurredAt.slice(0, 10) < date)
+    .sort(stableTransactionSort);
+  return simulate(rows).finalQuantity;
+}
+
 export function analyseCorporateActions(
   transactions: CanonicalTransaction[],
   holdings: HoldingQuantity[] | null,
@@ -263,7 +275,7 @@ export function analyseCorporateActions(
   const filesStart = sorted.find((row) => row.kind === "buy" || row.kind === "sell")?.occurredAt.slice(0, 10) ?? null;
   const countsOf = (rows: CanonicalTransaction[], heldNow: number | null) => ({
     bought: rows.filter((row) => row.kind === "buy" || row.kind === "opening-balance").reduce((sum, row) => sum + (row.quantity ?? 0), 0),
-    sold: rows.filter((row) => row.kind === "sell").reduce((sum, row) => sum + (row.quantity ?? 0), 0),
+    sold: rows.filter((row) => row.kind === "sell" || row.kind === "transfer-out").reduce((sum, row) => sum + (row.quantity ?? 0), 0),
     heldNow,
   });
 
@@ -282,7 +294,7 @@ export function analyseCorporateActions(
 
   const rowsById = new Map<string, CanonicalTransaction[]>();
   for (const row of sorted) {
-    if (!row.instrumentId || !["buy", "sell", "opening-balance", "split", "bonus"].includes(row.kind)) continue;
+    if (!row.instrumentId || !["buy", "sell", "opening-balance", "split", "bonus", "transfer-out"].includes(row.kind)) continue;
     const list = rowsById.get(row.instrumentId) ?? [];
     list.push(row);
     rowsById.set(row.instrumentId, list);
@@ -387,7 +399,7 @@ export function analyseCorporateActions(
       for (const row of rows) {
         const quantity = row.quantity ?? 0;
         if (row.kind === "buy" || row.kind === "opening-balance") held += quantity;
-        else if (row.kind === "sell") {
+        else if (row.kind === "sell" || row.kind === "transfer-out") {
           if (quantity > held + EPS) {
             needed += quantity - held;
             held = 0;
@@ -411,6 +423,8 @@ export function analyseCorporateActions(
             symbol,
             date: saleDay,
             message: `On ${saleDay} you sold ${symbol} first and bought it back the same day — that's an intraday trade, not missing history. Intraday trades aren't matched separately yet, so this stock's figures stay hidden for now.`,
+            intraday: true,
+            difference: null,
           });
         }
         continue;
@@ -524,6 +538,13 @@ export function analyseCorporateActions(
             instrumentId: id,
             symbol,
             date: windowTo,
+            intraday: sameDay || intraday,
+            difference:
+              sameDay || intraday
+                ? null
+                : zerodha !== undefined && holdings !== null && base.ok
+                  ? zerodha - base.finalQuantity
+                  : unexplainedShares(rows, holdings === null ? undefined : zerodha),
             message:
               sameDay || intraday
                 ? `On ${windowTo}, a sale was bigger than the ${symbol} shares held at that moment. This usually means intraday trades (sold before buying on the same day) or trades missing from your files — not a split or bonus.`
@@ -572,7 +593,9 @@ export function analyseCorporateActions(
           instrumentId: id,
           symbol,
           date: day(firstSale.occurredAt),
-          message: `On ${day(firstSale.occurredAt)}, a ${symbol} sale was bigger than the shares held at that moment. Common causes: intraday trades (sold before buying the same day) or a missing tradebook period.`,
+          message: `On ${day(firstSale.occurredAt)}, a ${symbol} sale was bigger than the shares held at that moment. Common causes: shares bought before your files start, an IPO, or intraday trades (sold before buying the same day).`,
+          intraday: false,
+          difference: unexplainedShares(rows, holdings === null ? undefined : zerodha),
         });
       }
       continue;
