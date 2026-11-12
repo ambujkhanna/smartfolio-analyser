@@ -22,6 +22,10 @@ export interface InstrumentLedger {
   realizedPnl: number | null;
   realizedPnlKnownSubtotal: number;
   realizedPnlComplete: boolean;
+  /** Sum of gains from sales that made a profit (known cost only). */
+  realizedGains: number;
+  /** Sum of losses from sales that made a loss, as a positive amount (known cost only). */
+  realizedLosses: number;
   buyOutflows: number;
   netSaleProceeds: number;
   standaloneFees: number;
@@ -62,6 +66,8 @@ interface MutableInstrumentLedger {
   lots: MutableLot[];
   realizedPnlKnownSubtotal: number;
   realizedPnlComplete: boolean;
+  realizedGains: number;
+  realizedLosses: number;
   buyOutflows: number;
   netSaleProceeds: number;
   standaloneFees: number;
@@ -177,6 +183,8 @@ export function buildLedger(input: unknown[]): LedgerResult {
         lots: [],
         realizedPnlKnownSubtotal: 0,
         realizedPnlComplete: true,
+        realizedGains: 0,
+        realizedLosses: 0,
         buyOutflows: 0,
         netSaleProceeds: 0,
         standaloneFees: 0,
@@ -330,7 +338,10 @@ export function buildLedger(input: unknown[]): LedgerResult {
       ledger.netSaleProceeds += netProceeds;
       cashFlows.netSaleProceeds += netProceeds;
       if (allocatedCostKnown) {
-        ledger.realizedPnlKnownSubtotal += netProceeds - allocatedCost;
+        const saleResult = netProceeds - allocatedCost;
+        ledger.realizedPnlKnownSubtotal += saleResult;
+        if (saleResult >= 0) ledger.realizedGains += saleResult;
+        else ledger.realizedLosses -= saleResult;
       } else {
         ledger.realizedPnlComplete = false;
         warnings.push({
@@ -403,6 +414,8 @@ export function buildLedger(input: unknown[]): LedgerResult {
         realizedPnl: realizedPnlComplete ? ledger.realizedPnlKnownSubtotal : null,
         realizedPnlKnownSubtotal: ledger.realizedPnlKnownSubtotal,
         realizedPnlComplete,
+        realizedGains: ledger.realizedGains,
+        realizedLosses: ledger.realizedLosses,
         buyOutflows: ledger.buyOutflows,
         netSaleProceeds: ledger.netSaleProceeds,
         standaloneFees: ledger.standaloneFees,

@@ -17,19 +17,52 @@ export default function HomeApp() {
 
   const handleLedgerChange = useCallback((next: LedgerResult | null) => setLedger(next), []);
 
-  const positions = useMemo(
-    () =>
-      (ledger?.instruments ?? []).map((instrument) => ({
-        instrumentId: instrument.instrumentId,
-        openQuantity: instrument.openQuantity,
-        openCostBasisTotal: instrument.openCostBasisTotal,
-      })),
-    [ledger],
-  );
   const instrumentsMissingHistory = useMemo(
     () => [...new Set((ledger?.errors ?? []).filter((issue) => issue.code === "OVERSELL" && issue.instrumentId).map((issue) => issue.instrumentId as string))],
     [ledger],
   );
+  const { positions, booked } = useMemo(() => {
+    const missing = new Set(instrumentsMissingHistory);
+    let bookedTotal = 0;
+    let bookedStocks = 0;
+    let bookedSkipped = 0;
+    const list = (ledger?.instruments ?? []).map((instrument) => {
+      // Lifecycle figures are only trustworthy when this stock's history is complete.
+      const complete =
+        !missing.has(instrument.instrumentId) &&
+        instrument.realizedPnlComplete &&
+        instrument.realizedPnl !== null &&
+        !instrument.hasUnknownOpeningBasis;
+      if (complete && instrument.realizedPnl !== null) {
+        if (instrument.netSaleProceeds > 0) {
+          bookedTotal += instrument.realizedPnl;
+          bookedStocks += 1;
+        }
+      } else if (instrument.netSaleProceeds > 0 || missing.has(instrument.instrumentId)) {
+        bookedSkipped += 1;
+      }
+      return {
+        instrumentId: instrument.instrumentId,
+        openQuantity: instrument.openQuantity,
+        openCostBasisTotal: instrument.openCostBasisTotal,
+        lifecycle:
+          complete && instrument.openCostBasisTotal !== null && instrument.realizedPnl !== null
+            ? {
+                realizedPnl: instrument.realizedPnl,
+                realizedGains: instrument.realizedGains,
+                realizedLosses: instrument.realizedLosses,
+                netInvested:
+                  instrument.buyOutflows +
+                  instrument.knownOpeningBasis +
+                  instrument.standaloneFees -
+                  instrument.netSaleProceeds -
+                  instrument.dividends,
+              }
+            : null,
+      };
+    });
+    return { positions: list, booked: { total: bookedTotal, stocks: bookedStocks, skipped: bookedSkipped } };
+  }, [ledger, instrumentsMissingHistory]);
 
   function openHistory() {
     setHistoryOpen(true);
@@ -42,6 +75,7 @@ export default function HomeApp() {
         positions={positions}
         hasHistory={Boolean(ledger)}
         instrumentsMissingHistory={instrumentsMissingHistory}
+        booked={booked}
         onAddHistory={openHistory}
       />
 

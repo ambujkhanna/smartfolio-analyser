@@ -37,6 +37,8 @@ export interface PortfolioHomeProps {
   hasHistory: boolean;
   /** Instrument IDs whose sales exceeded imported buys (earlier history missing). */
   instrumentsMissingHistory: string[];
+  /** Profit/loss booked by sales across all stocks with complete history (including fully sold ones). */
+  booked?: { total: number; stocks: number; skipped: number };
   onAddHistory: () => void;
 }
 
@@ -45,6 +47,14 @@ const quantity = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 4 });
 
 function formatMoney(value: number | null): string {
   return value === null ? "—" : money.format(value);
+}
+
+/** Signed amount with gain/loss colour; "—" when unknown. */
+function Signed({ value }: { value: number | null | undefined }) {
+  if (value === null || value === undefined) return <>—</>;
+  const rounded = Math.abs(value) < 0.005 ? 0 : value;
+  const tone = rounded > 0 ? "is-gain" : rounded < 0 ? "is-loss" : "";
+  return <span className={tone}>{(rounded > 0 ? "+" : "") + money.format(rounded)}</span>;
 }
 
 function rowNote(row: ReconciledHolding, hasHistory: boolean): { text: string; tone: "ok" | "warn" | "muted" } {
@@ -57,7 +67,7 @@ function rowNote(row: ReconciledHolding, hasHistory: boolean): { text: string; t
   return { text: "No buys found in history", tone: "warn" };
 }
 
-export default function PortfolioHome({ positions, hasHistory, instrumentsMissingHistory, onAddHistory }: PortfolioHomeProps) {
+export default function PortfolioHome({ positions, hasHistory, instrumentsMissingHistory, booked, onAddHistory }: PortfolioHomeProps) {
   const [state, setState] = useState<ConnectionState>({ kind: "checking" });
   const [banner, setBanner] = useState<string | null>(null);
 
@@ -102,6 +112,15 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
     ? rows.reduce((sum, row) => sum + (row.brokerLastPrice ?? 0) * row.brokerQuantity, 0)
     : null;
   const needsHistory = rows.filter((row) => hasHistory && row.status !== "matched");
+  const withLifecycle = rows.filter((row) => row.lifecycle !== null);
+  const lifecycleTotals = withLifecycle.reduce(
+    (sum, row) => ({
+      unrealized: sum.unrealized + (row.lifecycle?.unrealizedPnl ?? 0),
+      overall: sum.overall + (row.lifecycle?.overallPnl ?? 0),
+      toRecover: sum.toRecover + (row.lifecycle?.toRecover ?? 0),
+    }),
+    { unrealized: 0, overall: 0, toRecover: 0 },
+  );
   // Zerodha only returns to its registered site; connecting from any other site happens there.
   const connectElsewhere =
     state.kind === "not-connected" && state.connectOrigin && typeof window !== "undefined" && state.connectOrigin !== window.location.origin
@@ -205,6 +224,36 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
             <div><strong>{formatMoney(currentValue)}</strong><span>Current value (Zerodha last price)</span></div>
           </div>
 
+          {hasHistory ? (
+            <>
+              <div className="pnl-stats home-stats">
+                <div>
+                  <strong><Signed value={booked?.total ?? 0} /></strong>
+                  <span title="Profit/loss already locked in by selling, across every stock whose history is complete (including stocks you no longer hold)">
+                    Profit booked so far ({booked?.stocks ?? 0} stock{booked?.stocks === 1 ? "" : "s"})
+                  </span>
+                </div>
+                <div>
+                  <strong><Signed value={lifecycleTotals.unrealized} /></strong>
+                  <span title="Gain/loss on shares you still hold, against your real average cost">Current profit/loss on holdings</span>
+                </div>
+                <div>
+                  <strong><Signed value={lifecycleTotals.overall} /></strong>
+                  <span title="Booked + current, for stocks you still hold: today's value minus the money still in them">Overall on current stocks</span>
+                </div>
+                <div>
+                  <strong className={lifecycleTotals.toRecover > 0 ? "is-loss" : ""}>{formatMoney(lifecycleTotals.toRecover)}</strong>
+                  <span title="How much your current stocks still need to rise, in total, to give back all the money you put in">Still to recover</span>
+                </div>
+              </div>
+              <p className="home-note">
+                Covers {withLifecycle.length} of {rows.length} holdings with complete trade history
+                {booked && booked.skipped > 0 ? `; ${booked.skipped} stock${booked.skipped === 1 ? "" : "s"} with missing earlier trades are left out rather than guessed` : ""}.
+                Uses Zerodha&rsquo;s last price.
+              </p>
+            </>
+          ) : null}
+
           {!hasHistory ? (
             <div className="ask-card">
               <strong>One thing we need: your past trades (one-time)</strong>
@@ -233,6 +282,17 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
                     <th title="Average buy price reported by Zerodha">Zerodha avg cost</th>
                     <th title="Smartfolio's FIFO average cost of your remaining shares, from your trade history">Your real avg cost</th>
                     <th title="Last price reported by Zerodha; may be delayed">Zerodha last price</th>
+                    {hasHistory ? (
+                      <>
+                        <th title="Profit locked in by sales that made money">Profit booked</th>
+                        <th title="Loss locked in by sales that lost money">Loss booked</th>
+                        <th title="How much of the booked loss is already made back by booked profits and the current gain">Loss covered</th>
+                        <th title="Gain/loss on the shares you still hold, against your real average cost">Current P&amp;L</th>
+                        <th title="Everything together: today's value minus the money still in this stock">Overall</th>
+                        <th title="Amount this stock still has to make up so you get all your money back">To recover</th>
+                        <th title="Price at which selling everything you hold returns all the money you put in (after earlier gains/losses)">Break-even price</th>
+                      </>
+                    ) : null}
                     <th>Notes</th>
                   </tr>
                 </thead>
@@ -246,6 +306,25 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
                         <td>{formatMoney(row.brokerAveragePrice)}</td>
                         <td>{formatMoney(row.ledgerAveragePrice)}</td>
                         <td>{formatMoney(row.brokerLastPrice)}</td>
+                        {hasHistory ? (
+                          <>
+                            <td><Signed value={row.lifecycle?.profitBooked} /></td>
+                            <td>{row.lifecycle ? <span className={row.lifecycle.lossBooked > 0.005 ? "is-loss" : ""}>{formatMoney(row.lifecycle.lossBooked > 0.005 ? -row.lifecycle.lossBooked : 0)}</span> : "—"}</td>
+                            <td>{row.lifecycle ? (row.lifecycle.lossBooked > 0.005 ? formatMoney(row.lifecycle.lossCovered) : "No loss") : "—"}</td>
+                            <td><Signed value={row.lifecycle?.unrealizedPnl} /></td>
+                            <td><Signed value={row.lifecycle?.overallPnl} /></td>
+                            <td>
+                              {row.lifecycle ? (
+                                row.lifecycle.toRecover > 0 ? (
+                                  <span className="is-loss">{formatMoney(row.lifecycle.toRecover)}</span>
+                                ) : (
+                                  <span className="is-gain">Recovered</span>
+                                )
+                              ) : "—"}
+                            </td>
+                            <td>{row.lifecycle ? formatMoney(row.lifecycle.breakEvenPrice) : "—"}</td>
+                          </>
+                        ) : null}
                         <td><span className={"note-pill is-" + note.tone}>{note.text}</span></td>
                       </tr>
                     );

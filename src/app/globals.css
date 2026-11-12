@@ -574,3 +574,7 @@ h3 {
   border-radius: 10px;
   font: inherit;
 }
+
+/* Gain / loss amounts */
+.is-gain { color: var(--green-dark, #1d6b4a); }
+.is-loss { color: #b42318; }
