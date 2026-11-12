@@ -17,7 +17,16 @@ export async function GET(request: Request) {
   const apiKey = process.env.KITE_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "KITE_API_KEY is not configured." }, { status: 503 });
   const accessToken = await getZerodhaAccessToken();
-  if (!accessToken) return NextResponse.json({ error: "Zerodha is not connected. Connect and authorize your account first." }, { status: 401 });
+  if (!accessToken) {
+    // Tell the UI which site Zerodha sends users back to, so it can connect there.
+    let connectOrigin: string | null = null;
+    try {
+      connectOrigin = process.env.KITE_REDIRECT_URL ? new URL(process.env.KITE_REDIRECT_URL).origin : null;
+    } catch {
+      connectOrigin = null;
+    }
+    return NextResponse.json({ error: "Zerodha is not connected. Connect and authorize your account first.", connectOrigin }, { status: 401 });
+  }
 
   const type = new URL(request.url).searchParams.get("type") as DataType | null;
   if (!type || !(type in endpoints)) {

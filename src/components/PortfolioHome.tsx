@@ -11,7 +11,7 @@ import {
 type ConnectionState =
   | { kind: "checking" }
   | { kind: "not-configured" }
-  | { kind: "not-connected" }
+  | { kind: "not-connected"; connectOrigin?: string | null }
   | { kind: "expired" }
   | { kind: "error"; message: string }
   | { kind: "connected"; holdings: KiteHolding[]; retrievedAt: string | null };
@@ -21,6 +21,7 @@ interface HoldingsPayload {
   error?: string;
   reauthorize?: boolean;
   retrievedAt?: string;
+  connectOrigin?: string | null;
 }
 
 const PLATFORMS = [
@@ -66,7 +67,7 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
       const response = await fetch("/api/zerodha/data?type=holdings", { cache: "no-store" });
       const payload = (await response.json()) as HoldingsPayload;
       if (response.status === 503) return setState({ kind: "not-configured" });
-      if (response.status === 401) return setState({ kind: "not-connected" });
+      if (response.status === 401) return setState({ kind: "not-connected", connectOrigin: payload.connectOrigin ?? null });
       if (payload.reauthorize || response.status === 403) return setState({ kind: "expired" });
       if (!response.ok) return setState({ kind: "error", message: payload.error ?? "Zerodha returned an error." });
       const holdings = payload.data?.data;
@@ -101,6 +102,11 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
     ? rows.reduce((sum, row) => sum + (row.brokerLastPrice ?? 0) * row.brokerQuantity, 0)
     : null;
   const needsHistory = rows.filter((row) => hasHistory && row.status !== "matched");
+  // Zerodha only returns to its registered site; connecting from any other site happens there.
+  const connectElsewhere =
+    state.kind === "not-connected" && state.connectOrigin && typeof window !== "undefined" && state.connectOrigin !== window.location.origin
+      ? state.connectOrigin
+      : null;
 
   return (
     <section className="home-panel" aria-labelledby="home-title">
@@ -135,6 +141,14 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
               ),
             )}
           </div>
+          {state.kind === "not-connected" ? (
+            <p className="home-note">
+              Click <strong>Zerodha</strong> above to log in on Zerodha&rsquo;s site.
+              {connectElsewhere ? (
+                <> Zerodha sends you back to <strong>{new URL(connectElsewhere).host}</strong> (the site registered with Zerodha), and you will stay connected there, not on this page.</>
+              ) : null}
+            </p>
+          ) : null}
           <details className="home-help">
             <summary>What happens when I connect?</summary>
             <ul>
@@ -144,7 +158,10 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
             </ul>
           </details>
           {state.kind === "not-configured" ? (
-            <p className="home-note">The site owner has not added the Zerodha app keys to this deployment yet.</p>
+            <p className="home-note">
+              <strong>Zerodha can&rsquo;t be connected on this site yet.</strong> The Zerodha app keys (KITE_API_KEY, KITE_API_SECRET,
+              KITE_REDIRECT_URL) are not set for this deployment in Vercel. Use the main preview site, or upload a tradebook below.
+            </p>
           ) : null}
           <p className="home-note">
             Prefer not to connect? <button type="button" className="link-button" onClick={onAddHistory}>Upload a tradebook file instead</button>.

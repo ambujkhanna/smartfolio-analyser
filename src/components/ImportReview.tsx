@@ -402,6 +402,19 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
   }, [result]);
 
   const previewRows = result?.rows.slice(0, PREVIEW_ROW_LIMIT) ?? [];
+
+  // Human-readable name per instrument: resolved display name, else the file's symbol.
+  const nameByInstrument: Record<string, string> = {};
+  for (const row of result?.rows ?? []) {
+    const id = row.transaction?.instrumentId;
+    if (!id) continue;
+    const resolution = resolutionByRow[row.rowNumber];
+    const name =
+      (resolution?.status === "resolved" ? resolution.instrument.displayName : undefined) ??
+      rawValue(row, ["symbol", "ticker", "tradingSymbol", "scrip", "security", "schemeName", "fundName"]);
+    if (name && (!nameByInstrument[id] || resolution?.status === "resolved")) nameByInstrument[id] = name;
+  }
+  const instrumentLabel = (id: string) => nameByInstrument[id] ?? id.replace(/^SYMBOL:/, "");
   const resolvableRowCount = result?.rows.filter((row) => {
     if (!row.transaction && !row.candidateTransaction) return false;
     const reference = referenceForRow(row);
@@ -604,7 +617,7 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
                 <table className="position-table">
                   <thead>
                     <tr>
-                      <th scope="col">Instrument ID</th>
+                      <th scope="col">Stock</th>
                       <th scope="col">Open qty</th>
                       <th scope="col">Cost basis</th>
                       <th scope="col">Current price</th>
@@ -629,7 +642,8 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
                       return (
                       <tr key={item.instrumentId}>
                         <td>
-                          <strong>{item.instrumentId}</strong>
+                          <strong>{instrumentLabel(item.instrumentId)}</strong>
+                          <small className="position-reason">{item.instrumentId.replace(/^ISIN:/, "")}</small>
                           {item.reason ? <small className="position-reason">{item.reason}</small> : null}
                         </td>
                         <td>{formatQuantity(item.openQuantity)}</td>
@@ -703,7 +717,7 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
                         {row.transaction ? (
                           <div className="transaction-preview">
                             <strong>{row.transaction.kind}</strong>
-                            <span>{row.transaction.instrumentId ?? "Portfolio-level"}</span>
+                            <span>{row.transaction.instrumentId ? instrumentLabel(row.transaction.instrumentId) : "Portfolio-level"}</span>
                             {row.transaction.quantity !== undefined ? <span>Qty: {row.transaction.quantity}</span> : null}
                             {row.transaction.unitPrice !== undefined ? <span>Price: {row.transaction.unitPrice}</span> : null}
                             {row.transaction.amount !== undefined ? <span>Amount: {row.transaction.amount}</span> : null}

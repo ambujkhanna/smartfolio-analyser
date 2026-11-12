@@ -18,6 +18,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "KITE_REDIRECT_URL must point to /api/zerodha/callback." }, { status: 500 });
   }
 
+  // Zerodha always returns to the registered redirect URL. If this request came to a different
+  // site (for example another branch preview), start the login on the registered site instead,
+  // otherwise the state cookie is set on the wrong site and the callback rejects the login.
+  if (configuredRedirect) {
+    const registeredOrigin = new URL(configuredRedirect).origin;
+    if (registeredOrigin !== requestUrl.origin) {
+      return NextResponse.redirect(new URL("/api/zerodha/login", registeredOrigin));
+    }
+  }
+
   const state = randomBytes(24).toString("base64url");
   const jar = await cookies();
   jar.set("smartfolio_kite_oauth_state", state, {
