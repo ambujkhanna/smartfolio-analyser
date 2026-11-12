@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { VerificationResult } from "../engine/verification";
+import { STATUS_TEXT, describeChecks } from "./VerificationPanel";
 import {
   reconcileHoldings,
   type KiteHolding,
@@ -41,6 +43,8 @@ export interface PortfolioHomeProps {
   booked?: { total: number; stocks: number; skipped: number; closedTotal: number };
   /** Number of corporate-action / missing-buy items waiting for the owner's confirmation. */
   confirmCount?: number;
+  /** Per-stock check against Zerodha's own figures. */
+  verification?: VerificationResult;
   onAddHistory: () => void;
   /** Told whether Zerodha holdings are loaded, so the page can return here after an upload. */
   onConnectedChange?: (connected: boolean) => void;
@@ -153,7 +157,7 @@ function rowNote(row: ReconciledHolding, hasHistory: boolean): { text: string; t
   return { text: "No buys found in history", tone: "warn" };
 }
 
-export default function PortfolioHome({ positions, hasHistory, instrumentsMissingHistory, booked, onAddHistory, onConnectedChange, onHoldingsLoaded, confirmCount = 0 }: PortfolioHomeProps) {
+export default function PortfolioHome({ positions, hasHistory, instrumentsMissingHistory, booked, onAddHistory, onConnectedChange, onHoldingsLoaded, confirmCount = 0, verification }: PortfolioHomeProps) {
   const [state, setState] = useState<ConnectionState>({ kind: "checking" });
   const [banner, setBanner] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -324,6 +328,12 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
 
           {hasHistory ? (
             <>
+              {verification ? (
+                <a className="verify-summary" href="#verification">
+                  Checked against Zerodha: <b>✓ {verification.counts.verified} verified</b> · ? {verification.counts["needs-answer"]} need an answer ·
+                  ! {verification.counts.mismatch} don&rsquo;t match · – {verification.counts.unchecked} not checked
+                </a>
+              ) : null}
               {confirmCount > 0 ? (
                 <a className="home-banner confirm-banner" href="#needs-confirmation">
                   {confirmCount} item{confirmCount === 1 ? "" : "s"} need your confirmation (splits, bonuses, demergers or shares
@@ -436,7 +446,19 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
                     const note = rowNote(row, hasHistory);
                     return (
                       <tr key={row.isin}>
-                        <td><strong>{row.symbols.join(", ") || row.isin}</strong><small className="position-reason">{row.isin}</small></td>
+                        <td>
+                          <strong>{row.symbols.join(", ") || row.isin}</strong>
+                          <small className="position-reason">{row.isin}</small>
+                          {verification?.byId.get(row.isin) ? (() => {
+                            const stock = verification.byId.get(row.isin)!;
+                            const status = STATUS_TEXT[stock.status];
+                            return (
+                              <span className={"verify-badge th-tip is-" + status.tone} tabIndex={0} data-tip={describeChecks(stock)}>
+                                {status.icon} {status.text}
+                              </span>
+                            );
+                          })() : null}
+                        </td>
                         <td>{quantity.format(row.brokerQuantity)}</td>
                         <td>{formatMoney(row.brokerAveragePrice)}</td>
                         <td>{formatMoney(row.ledgerAveragePrice)}</td>

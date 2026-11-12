@@ -1,4 +1,5 @@
 import { validateTransaction, type CanonicalTransaction } from "../domain/transaction";
+import type { PnlStatement } from "../importers/zerodhaPnl";
 
 /**
  * Saved trade history, kept only in this browser (IndexedDB). Nothing here is sent
@@ -15,6 +16,8 @@ export interface SavedHistory {
   names: Record<string, string>;
   /** When a backup file was last downloaded from this browser. */
   lastBackupAt: string | null;
+  /** Zerodha P&L statements used to verify figures (never turned into trades). */
+  statements: PnlStatement[];
 }
 
 export const EMPTY_HISTORY: SavedHistory = {
@@ -24,6 +27,7 @@ export const EMPTY_HISTORY: SavedHistory = {
   dismissed: [],
   names: {},
   lastBackupAt: null,
+  statements: [],
 };
 
 /** True when there are saved changes that are not in a downloaded backup yet. */
@@ -83,6 +87,7 @@ export function toBackup(history: SavedHistory, now = new Date()): string {
       lastZerodhaSyncAt: history.lastZerodhaSyncAt,
       dismissed: history.dismissed,
       names: history.names,
+      statements: history.statements,
       transactions: history.transactions,
     },
     null,
@@ -93,7 +98,13 @@ export function toBackup(history: SavedHistory, now = new Date()): string {
 /** Parses a backup file; every trade is re-validated. Returns an error message on failure. */
 export function fromBackup(
   text: string,
-): { transactions: CanonicalTransaction[]; lastZerodhaSyncAt: string | null; dismissed: string[]; names: Record<string, string> } | string {
+): {
+  transactions: CanonicalTransaction[];
+  lastZerodhaSyncAt: string | null;
+  dismissed: string[];
+  names: Record<string, string>;
+  statements: PnlStatement[];
+} | string {
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -122,6 +133,7 @@ export function fromBackup(
       record.names && typeof record.names === "object"
         ? (Object.fromEntries(Object.entries(record.names as Record<string, unknown>).filter(([, value]) => typeof value === "string")) as Record<string, string>)
         : {},
+    statements: Array.isArray(record.statements) ? (record.statements as PnlStatement[]).filter((item) => item && Array.isArray(item.rows)) : [],
   };
 }
 
@@ -164,6 +176,7 @@ export async function loadHistory(): Promise<SavedHistory> {
           ? Object.fromEntries(Object.entries(saved.names).filter(([, value]) => typeof value === "string")) as Record<string, string>
           : {},
       lastBackupAt: typeof saved.lastBackupAt === "string" ? saved.lastBackupAt : null,
+      statements: Array.isArray(saved.statements) ? (saved.statements as PnlStatement[]).filter((item) => item && Array.isArray(item.rows)) : [],
     };
   } finally {
     db.close();

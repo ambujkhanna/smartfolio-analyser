@@ -20,6 +20,10 @@ import {
 } from "../lib/tradeStore";
 import ImportReview from "./ImportReview";
 import CorporateActionsPanel from "./CorporateActionsPanel";
+import VerificationPanel from "./VerificationPanel";
+import { verifyPortfolio } from "../engine/verification";
+import { parseZerodhaPnlCsv, parseZerodhaPnlSheets, type PnlStatement } from "../importers/zerodhaPnl";
+import { readXlsx } from "../importers/xlsx";
 import { analyseCorporateActions, type HoldingQuantity } from "../engine/corporateActions";
 import PortfolioHome from "./PortfolioHome";
 import ZerodhaPanel from "./ZerodhaPanel";
@@ -28,6 +32,14 @@ import ZerodhaPanel from "./ZerodhaPanel";
  * Page shell: portfolio first (auto-loaded from the connected broker), trade
  * history as a one-time add-on, raw broker data tucked away under "Advanced".
  */
+/** Adds statements, replacing any with the same period. */
+function mergeStatements(existing: PnlStatement[], incoming: PnlStatement[]): PnlStatement[] {
+  const key = (statement: PnlStatement) => `${statement.from}|${statement.to}`;
+  const map = new Map(existing.map((statement) => [key(statement), statement]));
+  for (const statement of incoming) map.set(key(statement), statement);
+  return [...map.values()].sort((a, b) => String(a.from).localeCompare(String(b.from)));
+}
+
 export default function HomeApp() {
   const [saved, setSaved] = useState<SavedHistory>(EMPTY_HISTORY);
   const [storeStatus, setStoreStatus] = useState<"loading" | "ready" | "unavailable">("loading");
@@ -76,6 +88,7 @@ export default function HomeApp() {
       dismissed: savedRef.current.dismissed,
       names: savedRef.current.names,
       lastBackupAt: savedRef.current.lastBackupAt,
+      statements: savedRef.current.statements,
       transactions: merged,
       updatedAt: added > 0 ? new Date().toISOString() : savedRef.current.updatedAt,
     };
@@ -205,6 +218,7 @@ export default function HomeApp() {
       ...savedRef.current,
       dismissed: [...new Set([...savedRef.current.dismissed, ...parsed.dismissed])],
       names: { ...parsed.names, ...savedRef.current.names },
+      statements: mergeStatements(savedRef.current.statements, parsed.statements),
     });
     setStoreMessage(`Restored backup: ${added} trade${added === 1 ? "" : "s"} added (${parsed.transactions.length - added} already saved).`);
   }
@@ -315,6 +329,53 @@ export default function HomeApp() {
     await persist({ ...savedRef.current, dismissed: [...new Set([...savedRef.current.dismissed, id])], updatedAt: new Date().toISOString() });
   }
 
+  const [statementMessage, setStatementMessage] = useState<string | null>(null);
+  async function uploadStatements(event: ChangeEvent<HTMLInputElement>) {
+    const files = [...(event.target.files ?? [])];
+    event.target.value = "";
+    const found: PnlStatement[] = [];
+    const problems: string[] = [];
+    for (const file of files) {
+      try {
+        const statement = file.name.toLowerCase().endsWith(".xlsx")
+          ? parseZerodhaPnlSheets(readXlsx(new Uint8Array(await file.arrayBuffer())), file.name)
+          : parseZerodhaPnlCsv(await file.text(), file.name);
+        if (statement && statement.from && statement.to) found.push(statement);
+        else problems.push(`${file.name}: not a Zerodha P&L statement (expected columns Symbol, ISIN, Realized P&L)`);
+      } catch {
+        problems.push(`${file.name}: could not be read`);
+      }
+    }
+    if (found.length > 0) {
+      await persist({ ...savedRef.current, statements: mergeStatements(savedRef.current.statements, found), updatedAt: new Date().toISOString() });
+    }
+    setStatementMessage(
+      [found.length > 0 ? `Added ${found.length} statement${found.length === 1 ? "" : "s"}: ${found.map((item) => `${item.from} to ${item.to}`).join(", ")}.` : "", ...problems]
+        .filter(Boolean)
+        .join(" "),
+    );
+  }
+  async function removeStatement(index: number) {
+    await persist({ ...savedRef.current, statements: savedRef.current.statements.filter((_, position) => position !== index), updatedAt: new Date().toISOString() });
+  }
+  const verification = useMemo(
+    () =>
+      verifyPortfolio({
+        transactions: saved.transactions,
+        holdings: holdingQuantities,
+        statements: saved.statements,
+        pendingIds: new Set(
+          suggestions.flatMap((suggestion) =>
+            suggestion.type === "known-demerger"
+              ? [suggestion.parentId, ...suggestion.children.map((child) => child.preselected ?? "")]
+              : [suggestion.instrumentId],
+          ),
+        ),
+        labelOf,
+      }),
+    [saved.transactions, saved.statements, holdingQuantities, suggestions, labelOf],
+  );
+
   const range = dateRange(saved.transactions);
   const fromZerodha = saved.transactions.filter((transaction) => transaction.source.fileName === KITE_TRADES_SOURCE).length;
 
@@ -390,8 +451,19 @@ export default function HomeApp() {
           onConnectedChange={handleConnectedChange}
           onHoldingsLoaded={handleHoldingsLoaded}
           confirmCount={suggestions.length}
+          verification={verification}
         />
       </div>
+
+      {saved.transactions.length > 0 || holdingQuantities ? (
+        <VerificationPanel
+          result={verification}
+          statements={saved.statements}
+          onUpload={(event) => void uploadStatements(event)}
+          onRemoveStatement={(index) => void removeStatement(index)}
+          message={statementMessage}
+        />
+      ) : null}
 
       <CorporateActionsPanel
         suggestions={suggestions}

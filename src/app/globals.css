@@ -685,3 +685,22 @@ h3 {
 .count-table { max-width: 420px; }
 .count-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .count-table .count-total td { border-top: 2px solid var(--line); color: #7c541b; }
+
+/* Verification against Zerodha */
+.verify-panel { padding: 18px; }
+.verify-panel h2 { margin: 0 0 8px; font-size: 18px; }
+.verify-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.verify-total { color: var(--muted); font-size: 12px; }
+.note-pill.is-bad, .verify-badge.is-bad { background: #fdecea; color: #b42318; }
+.verify-badge { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; white-space: nowrap; border-bottom: none; }
+.verify-badge.is-ok { background: #e7f4ec; color: #17603f; }
+.verify-badge.is-warn { background: #fff4e0; color: #8a5a16; }
+.verify-badge.is-muted { background: #f1f3f2; color: #6b7a71; }
+.verify-badge::after { white-space: pre-line; left: 0; right: auto; max-width: 340px; }
+.verify-summary { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; text-decoration: none; }
+.verify-list { margin-top: 12px; font-size: 13px; }
+.verify-list ul { margin: 6px 0; padding-left: 18px; display: grid; gap: 4px; }
+.verify-names { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.statement-list { margin: 8px 0 0; padding-left: 18px; font-size: 13px; display: grid; gap: 4px; }
+.statement-list button { margin-left: 8px; }
+.file-button { display: inline-block; cursor: pointer; margin-top: 6px; }

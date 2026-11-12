@@ -39,6 +39,9 @@
 - [x] Auto-matching by ISIN / symbol / share count with a confirm-only summary; cards refresh when holdings load.
 - [x] Stricter split/bonus detection (DECISIONS P12); neutral note for unexplained quantities.
 - [x] Backup reminder banner + leave-page warning; backups now also carry dismissed items and looked-up names.
+- [x] **Verification against Zerodha**: P&L statement import; per-stock status badge + "Checked against Zerodha"
+      panel (verified / needs answer / doesn't match / not checked) using holdings (shares, average cost) and P&L
+      statements (booked P&L per period, shares and cost at period end). Statements saved in browser and backups.
 - [x] Build label (commit + environment) in the footer and `/api/version`.
 
 ### Hosting and security

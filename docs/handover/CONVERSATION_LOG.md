@@ -99,6 +99,12 @@ orders and trades in Preview; recurring problem of the branch alias serving a st
     "IPO allotment" is the default choice when the files start before the first sale.
 35. **Owner asked** how to trust the app without validating every stock by hand → proposal: automatic cross-check
     against Zerodha's own P&L statement + a per-stock "verified" status (see OPEN_QUESTIONS Q14).
+36. **Owner approved** ("Yes, build it") → built: Zerodha P&L statement import (.xlsx/.csv; several years at once;
+    kept in the browser), per-stock check against Zerodha (live holdings: shares + average cost; statements: booked
+    P&L per period + shares/cost at period end), status badge per stock (Verified / Needs your answer / Doesn't match /
+    Not checked) with details on hover, and a "Checked against Zerodha" panel listing mismatches with both figures.
+37. **Owner asked** the price of Zerodha's paid API with history → Kite Connect paid is ₹500/month and adds live/
+    historical *prices*, not past trades; no Zerodha API gives past trades (decision D2 stands).
 
 ## Where things stand at the end of 12 Nov (updated after item 27)
 
