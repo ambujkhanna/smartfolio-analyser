@@ -21,8 +21,8 @@ export interface KnownDemerger {
   parentCostFraction: number;
   children: Array<{
     name: string;
-    /** Symbol fragments used to pre-select the matching stock in the owner's data. */
-    symbolHints: string[];
+    /** Exact trading symbols used to pre-select the matching stock in the owner's data. */
+    symbols: string[];
     isin?: string;
     ratio: number;
     costFraction: number;
@@ -38,7 +38,7 @@ export const KNOWN_DEMERGERS: KnownDemerger[] = [
     parent: { isins: ["INE155A01022"], symbols: ["TATAMOTORS", "TMPV"], name: "Tata Motors Passenger Vehicles (TMPV)" },
     parentCostFraction: 0.6885,
     children: [
-      { name: "Tata Motors commercial vehicles (TMCV)", symbolHints: ["TMCV", "TMLCV"], isin: "INE1TAE01010", ratio: 1, costFraction: 0.3115 },
+      { name: "Tata Motors commercial vehicles (TMCV)", symbols: ["TMCV", "TMLCV"], isin: "INE1TAE01010", ratio: 1, costFraction: 0.3115 },
     ],
     source: "Company cost-of-acquisition notice, 12 Nov 2025: TMPV 68.85%, TMCV 31.15%; 1 TMCV share per share held on 14 Oct 2025.",
   },
@@ -49,12 +49,14 @@ export const KNOWN_DEMERGERS: KnownDemerger[] = [
     parent: { isins: ["INE205A01025"], symbols: ["VEDL"], name: "Vedanta" },
     parentCostFraction: 0.5234,
     children: [
-      { name: "Malco Energy (oil & gas)", symbolHints: ["MALCO"], ratio: 1, costFraction: 0.2149 },
-      { name: "Talwandi Sabo Power", symbolHints: ["TALWANDI", "TSPL", "VEDPOWER"], ratio: 1, costFraction: 0.1223 },
-      { name: "Vedanta Aluminium Metal", symbolHints: ["ALUM", "VAML", "VEDALU"], ratio: 1, costFraction: 0.0715 },
-      { name: "Vedanta Iron & Steel", symbolHints: ["IRON", "STEEL", "VISL"], ratio: 1, costFraction: 0.0679 },
+      // Listed names/symbols (seen in Zerodha holdings): VOGL = Vedanta Oil & Gas (formerly Malco Energy),
+      // VEDPOWER = Vedanta Power (Talwandi Sabo Power), VAML, VISL.
+      { name: "Vedanta Oil & Gas — VOGL (formerly Malco Energy)", symbols: ["VOGL", "MALCO"], isin: "INE704J01044", ratio: 1, costFraction: 0.2149 },
+      { name: "Vedanta Power — VEDPOWER (Talwandi Sabo Power)", symbols: ["VEDPOWER", "TSPL"], isin: "INE694L01019", ratio: 1, costFraction: 0.1223 },
+      { name: "Vedanta Aluminium Metal — VAML", symbols: ["VAML"], ratio: 1, costFraction: 0.0715 },
+      { name: "Vedanta Iron & Steel — VISL", symbols: ["VISL"], isin: "INE1CLE01013", ratio: 1, costFraction: 0.0679 },
     ],
-    source: "Company cost-of-acquisition notice, 16 May 2026 (scheme effective 1 May 2026): Vedanta 52.34%, Malco Energy 21.49%, Talwandi Sabo Power 12.23%, Vedanta Aluminium Metal 7.15%, Vedanta Iron & Steel 6.79%; 1 share of each per Vedanta share.",
+    source: "Company cost-of-acquisition notice, 16 May 2026 (scheme effective 1 May 2026): Vedanta 52.34%, Vedanta Oil & Gas / Malco Energy 21.49%, Vedanta Power / Talwandi Sabo Power 12.23%, Vedanta Aluminium Metal 7.15%, Vedanta Iron & Steel 6.79%; 1 share of each per Vedanta share held on 1 May 2026.",
   },
 ];
 
@@ -166,12 +168,13 @@ export function analyseCorporateActions(
   transactions: CanonicalTransaction[],
   holdings: HoldingQuantity[] | null,
   dismissed: Set<string> = new Set(),
+  knownNames: Map<string, string> = new Map(),
 ): Suggestion[] {
   const suggestions: Suggestion[] = [];
   const sorted = [...transactions].sort(stableTransactionSort);
 
   // Symbols known per instrument (from trades and holdings).
-  const symbolOf = new Map<string, string>();
+  const symbolOf = new Map<string, string>(knownNames);
   for (const row of sorted) if (row.instrumentId && row.symbol) symbolOf.set(row.instrumentId, row.symbol);
   for (const holding of holdings ?? []) if (holding.symbol) symbolOf.set(holding.isin, holding.symbol.toUpperCase());
   const label = (id: string) => symbolOf.get(id) ?? id;
@@ -213,11 +216,19 @@ export function analyseCorporateActions(
     const before = (rowsById.get(parentId) ?? []).filter((row) => day(row.occurredAt) < event.exDate);
     const held = simulate(before).finalQuantity;
     if (held <= EPS) continue;
-    const options = [...orphanIds].filter((id) => id !== parentId).map((id) => ({ instrumentId: id, label: label(id) }));
+    // Every stock can be chosen (new shares may have been topped up with later buys);
+    // exact matches first, then stocks with unexplained quantities, then the rest by name.
+    const isMatch = (id: string) =>
+      event.children.some((child) => child.isin === id || child.symbols.includes(label(id).toUpperCase()));
+    const rank = (id: string) => (isMatch(id) ? 0 : orphanIds.has(id) ? 1 : 2);
+    const options = [...ids]
+      .filter((id) => id !== parentId)
+      .sort((a, b) => rank(a) - rank(b) || label(a).localeCompare(label(b)))
+      .map((id) => ({ instrumentId: id, label: label(id) }));
     const children = event.children.map((child, index) => {
       const match =
         options.find((option) => child.isin && option.instrumentId === child.isin) ??
-        options.find((option) => child.symbolHints.some((hint) => option.label.toUpperCase().includes(hint)));
+        options.find((option) => child.symbols.includes(option.label.toUpperCase()));
       if (match) claimedChildren.add(match.instrumentId);
       return { index, preselected: match?.instrumentId ?? null };
     });

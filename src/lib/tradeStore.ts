@@ -11,9 +11,11 @@ export interface SavedHistory {
   lastZerodhaSyncAt: string | null;
   /** Suggestions the owner said "not this" to. */
   dismissed: string[];
+  /** Stock symbols looked up by ISIN for stocks saved without one (public instrument list). */
+  names: Record<string, string>;
 }
 
-export const EMPTY_HISTORY: SavedHistory = { transactions: [], updatedAt: null, lastZerodhaSyncAt: null, dismissed: [] };
+export const EMPTY_HISTORY: SavedHistory = { transactions: [], updatedAt: null, lastZerodhaSyncAt: null, dismissed: [], names: {} };
 
 const DB_NAME = "smartfolio";
 const DB_VERSION = 1;
@@ -132,6 +134,10 @@ export async function loadHistory(): Promise<SavedHistory> {
       updatedAt: typeof saved.updatedAt === "string" ? saved.updatedAt : null,
       lastZerodhaSyncAt: typeof saved.lastZerodhaSyncAt === "string" ? saved.lastZerodhaSyncAt : null,
       dismissed: Array.isArray(saved.dismissed) ? saved.dismissed.filter((item): item is string => typeof item === "string") : [],
+      names:
+        saved.names && typeof saved.names === "object"
+          ? Object.fromEntries(Object.entries(saved.names).filter(([, value]) => typeof value === "string")) as Record<string, string>
+          : {},
     };
   } finally {
     db.close();

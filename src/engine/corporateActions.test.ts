@@ -75,4 +75,36 @@ describe("analyseCorporateActions", () => {
     const rows = [t("sell", "INE555E01015", "GIFTCO", "2023-05-02", 5, 50)];
     expect(analyseCorporateActions(rows, [], new Set(["missing:INE555E01015"]))).toHaveLength(0);
   });
+
+  it("offers new companies that were later topped up with buys (Vedanta → VOGL etc.)", () => {
+    const rows = [
+      t("buy", "INE205A01025", "VEDL", "2026-02-01", 2, 450),
+      t("buy", "INE704J01044", "VOGL", "2026-06-10", 78, 41),
+      t("buy", "INE694L01019", "VEDPOWER", "2026-06-10", 1, 46),
+      t("buy", "INE205A01025", "VEDL", "2026-06-11", 6, 260),
+    ];
+    const holdings = [
+      { isin: "INE205A01025", symbol: "VEDL", quantity: 8 },
+      { isin: "INE704J01044", symbol: "VOGL", quantity: 80 },
+      { isin: "INE694L01019", symbol: "VEDPOWER", quantity: 3 },
+      { isin: "INE999Z01011", symbol: "VAML", quantity: 2 },
+      { isin: "INE1CLE01013", symbol: "VISL", quantity: 2 },
+    ];
+    const found = analyseCorporateActions(rows, holdings);
+    const demerger = found.find((item) => item.type === "known-demerger");
+    if (demerger?.type !== "known-demerger") throw new Error("no demerger suggestion");
+    expect(demerger.parentQuantity).toBe(2);
+    expect(demerger.children.map((child) => child.preselected)).toEqual(["INE704J01044", "INE694L01019", "INE999Z01011", "INE1CLE01013"]);
+    expect(demerger.options[0]!.label).toMatch(/VOGL|VEDPOWER|VAML|VISL/);
+    // The new companies are explained by the demerger, not reported separately.
+    expect(found.filter((item) => item.type !== "known-demerger")).toHaveLength(0);
+
+    const event = KNOWN_DEMERGERS.find((item) => item.id === "vedanta-2026")!;
+    const applied = [...rows, knownDemergerTransaction(event, "INE205A01025", demerger.children.map((child) => child.preselected!))];
+    expect(analyseCorporateActions(applied, holdings)).toHaveLength(0);
+    const ledger = buildLedger(applied);
+    const vogl = ledger.instruments.find((item) => item.instrumentId === "INE704J01044")!;
+    expect(vogl.openQuantity).toBe(80);
+    expect(vogl.openCostBasisTotal).toBeCloseTo(78 * 41 + 2 * 450 * 0.2149);
+  });
 });

@@ -73,6 +73,7 @@ export default function HomeApp() {
       ...savedRef.current,
       ...extra,
       dismissed: savedRef.current.dismissed,
+      names: savedRef.current.names,
       transactions: merged,
       updatedAt: added > 0 ? new Date().toISOString() : savedRef.current.updatedAt,
     };
@@ -213,21 +214,61 @@ export default function HomeApp() {
     () => (saved.transactions.length > 0 ? buildLedger(saved.transactions) : null),
     [saved.transactions],
   );
+  const namesMap = useMemo(() => new Map(Object.entries(saved.names)), [saved.names]);
   const suggestions = useMemo(
-    () => (saved.transactions.length > 0 || holdingQuantities ? analyseCorporateActions(saved.transactions, holdingQuantities, new Set(saved.dismissed)) : []),
-    [saved.transactions, saved.dismissed, holdingQuantities],
+    () =>
+      saved.transactions.length > 0 || holdingQuantities
+        ? analyseCorporateActions(saved.transactions, holdingQuantities, new Set(saved.dismissed), namesMap)
+        : [],
+    [saved.transactions, saved.dismissed, holdingQuantities, namesMap],
   );
   const adjustments = saved.transactions.filter((transaction) => transaction.source.fileName === "Your confirmation");
   const symbolOf = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, string>(namesMap);
     for (const transaction of saved.transactions) {
       if (transaction.instrumentId && transaction.symbol) map.set(transaction.instrumentId, transaction.symbol);
       for (const child of transaction.demerger?.children ?? []) if (child.symbol && !map.has(child.instrumentId)) map.set(child.instrumentId, child.symbol);
     }
     for (const holding of holdingQuantities ?? []) if (holding.symbol) map.set(holding.isin, holding.symbol);
     return map;
-  }, [saved.transactions, holdingQuantities]);
+  }, [saved.transactions, holdingQuantities, namesMap]);
   const labelOf = useCallback((id: string) => symbolOf.get(id) ?? id, [symbolOf]);
+
+  // Stocks saved without a symbol and not in current holdings: look up the symbol by ISIN
+  // (only the ISIN is sent) and remember it, so nothing is shown as a bare INE… code.
+  const lookedUpRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (storeStatus !== "ready") return;
+    const missing = [...new Set(saved.transactions.map((transaction) => transaction.instrumentId ?? ""))].filter(
+      (id) => /^IN[A-Z0-9]{9}[0-9]$/.test(id) && !symbolOf.has(id) && !lookedUpRef.current.has(id),
+    );
+    if (missing.length === 0) return;
+    missing.forEach((id) => lookedUpRef.current.add(id));
+    void (async () => {
+      const found: Record<string, string> = {};
+      for (let offset = 0; offset < missing.length; offset += 100) {
+        const batch = missing.slice(offset, offset + 100);
+        const response = await fetch("/api/instruments/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ references: batch.map((isin) => ({ isin })) }),
+        }).catch(() => null);
+        if (!response?.ok) continue;
+        const payload = (await response.json().catch(() => null)) as {
+          results?: Array<{ index: number; resolution: { status: string; instrument?: { symbol?: string; displayName?: string }; candidates?: Array<{ symbol?: string }> } }>;
+        } | null;
+        for (const item of payload?.results ?? []) {
+          const isin = batch[item.index];
+          const instrument = item.resolution.instrument ?? item.resolution.candidates?.[0];
+          const name = instrument?.symbol ?? (item.resolution.instrument?.displayName);
+          if (isin && name) found[isin] = name.toUpperCase();
+        }
+      }
+      if (Object.keys(found).length > 0) {
+        await persist({ ...savedRef.current, names: { ...savedRef.current.names, ...found } });
+      }
+    })();
+  }, [storeStatus, saved.transactions, symbolOf, persist]);
 
   async function applyAdjustment(transaction: CanonicalTransaction) {
     const added = await addTrades([transaction]);

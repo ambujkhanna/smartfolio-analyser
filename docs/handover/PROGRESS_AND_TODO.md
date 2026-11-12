@@ -34,6 +34,8 @@
       (Tata Motors 2025: TMPV 68.85% / TMCV 31.15%; Vedanta 2026: 52.34 / 21.49 / 12.23 / 7.15 / 6.79%),
       shares without a buy (IPO / transfer / before files / gift / other demerger); confirm, dismiss, undo.
 - [x] Demerger accounting in the engine; trades now remember their stock symbol.
+- [x] Demerger matching lists every stock (new companies topped up with buys included); Vedanta children
+      mapped to VOGL / VEDPOWER / VAML / VISL; missing stock names looked up by ISIN and saved in the browser.
 - [x] Build label (commit + environment) in the footer and `/api/version`.
 
 ### Hosting and security

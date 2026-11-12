@@ -71,6 +71,9 @@ orders and trades in Preview; recurring problem of the branch alias serving a st
 26. **Owner approved all four steps** → built clearer tiles, demerger accounting, detection of splits/bonuses,
     verified Tata Motors and Vedanta demergers, and the shares-without-a-buy helper ("Needs your confirmation").
 27. **Owner asked** for an end-to-end "change → push → deploy" guide → DEV_WORKFLOW.md.
+28. **Owner reported** the Vedanta card could not pick VOGL (received in the demerger, then topped up with buys) and some
+    stocks showed only an ISIN. Fixed: dropdown lists all stocks (likely matches first); Vedanta list uses the listed
+    symbols VOGL / VEDPOWER / VAML / VISL; names for ISIN-only stocks are looked up (ISIN only sent) and remembered.
 
 ## Where things stand at the end of 12 Nov (updated after item 27)
 
