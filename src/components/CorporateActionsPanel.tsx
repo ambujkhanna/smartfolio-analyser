@@ -259,7 +259,7 @@ function MissingBuysCard({
   onApply: (transaction: CanonicalTransaction) => void;
   onDismiss: (id: string) => void;
 }) {
-  const [how, setHow] = useState("before-files");
+  const [how, setHow] = useState(suggestion.filesStart && suggestion.filesStart < suggestion.beforeDate ? "ipo" : "before-files");
   const [quantity, setQuantity] = useState(String(suggestion.quantity));
   const [price, setPrice] = useState("");
   const [date, setDate] = useState(suggestion.beforeDate);
@@ -269,8 +269,8 @@ function MissingBuysCard({
   const qty = Number(quantity);
   const unitPrice = price.trim() === "" ? undefined : Number(price);
   const label: Record<string, string> = {
-    "before-files": "Bought before my tradebook files start",
     ipo: "IPO allotment",
+    "before-files": "Bought before my tradebook files start",
     transfer: "Transferred in from another account",
     gift: "Gift / inheritance",
     demerger: "Received from a demerger of another stock",
@@ -281,7 +281,20 @@ function MissingBuysCard({
       <strong>
         {suggestion.symbol}: {suggestion.quantity} share{suggestion.quantity === 1 ? "" : "s"} with no purchase record
       </strong>
-      <p><b>What we see:</b> {suggestion.reason}</p>
+      <table className="mini-table count-table">
+        <tbody>
+          <tr><td>Bought (in your tradebook files)</td><td>{suggestion.counts.bought}</td></tr>
+          <tr><td>Sold (in your tradebook files)</td><td>{suggestion.counts.sold}</td></tr>
+          <tr><td>Held now (Zerodha)</td><td>{suggestion.counts.heldNow ?? "not connected"}</td></tr>
+          <tr className="count-total"><td>No purchase record (sold + held − bought)</td><td>{suggestion.quantity}</td></tr>
+        </tbody>
+      </table>
+      <p>{suggestion.reason}</p>
+      <p>
+        <b>Usually these are:</b> <b>IPO allotments</b> (they never appear in a tradebook), shares bought before your oldest
+        file{suggestion.filesStart ? <> (your files start on {suggestion.filesStart})</> : null}, transfers from another
+        account, or bonus/demerger shares.
+      </p>
       <p><b>Why it matters:</b> without what you paid for them, the profit/loss on this stock can&rsquo;t be worked out.</p>
       <p><b>How did you get these {suggestion.quantity} shares, and what did they cost?</b></p>
       <div className="card-form">

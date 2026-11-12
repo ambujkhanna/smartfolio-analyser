@@ -184,8 +184,10 @@ describe("analyseCorporateActions", () => {
     const found = analyseCorporateActions(rows, [{ isin: "INE03Q201024", symbol: "ALIVUS", quantity: 5 }]);
     expect(found[0]).toMatchObject({ type: "missing-buys", quantity: 10, beforeDate: "2026-10-27" });
     if (found[0]!.type === "missing-buys") {
-      expect(found[0]!.reason).toMatch(/You sold 10 ALIVUS shares on 2026-10-28/);
+      expect(found[0]!.reason).toMatch(/10 of your ALIVUS shares have no purchase in your files/);
       expect(found[0]!.reason).toMatch(/Afterwards you bought 5 again/);
+      // bought 5 + missing 10 = sold 10 + held 5
+      expect(found[0]!.counts).toEqual({ bought: 5, sold: 10, heldNow: 5 });
     }
   });
 });

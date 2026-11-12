@@ -93,6 +93,12 @@ orders and trades in Preview; recurring problem of the branch alias serving a st
 33. **Owner found** "ALIVUS: 10 shares without an earlier buy" confusing (people sell first, then buy again).
     Reworded: "You sold 10 ALIVUS shares on DATE, but your files don't show when you bought them… Afterwards you
     bought N again". A sale covered by a buy-back the same day is labelled **intraday**, not missing history.
+34. **Owner found** the ALIVUS/SULA cards still confusing (3 vs 45 vs 10). Replaced with a share-count table:
+    bought (files) / sold (files) / held now (Zerodha) / no purchase record = sold + held − bought, plus "usually IPO
+    allotments (never in a tradebook), shares bought before your oldest file (date shown), transfers, bonus/demerger".
+    "IPO allotment" is the default choice when the files start before the first sale.
+35. **Owner asked** how to trust the app without validating every stock by hand → proposal: automatic cross-check
+    against Zerodha's own P&L statement + a per-stock "verified" status (see OPEN_QUESTIONS Q14).
 
 ## Where things stand at the end of 12 Nov (updated after item 27)
 

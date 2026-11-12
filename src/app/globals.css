@@ -681,3 +681,7 @@ h3 {
 .backup-banner { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin: 8px 0; padding: 10px 14px; border: 1px solid #f0dfbd; border-radius: 10px; background: #fffaf1; color: #765d38; font-size: 13px; }
 
 .ask-card.is-neutral { background: #f6f7f8; border-color: var(--line); }
+
+.count-table { max-width: 420px; }
+.count-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.count-table .count-total td { border-top: 2px solid var(--line); color: #7c541b; }

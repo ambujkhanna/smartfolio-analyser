@@ -125,6 +125,10 @@ export type Suggestion =
       beforeDate: string;
       firstSeen: string;
       reason: string;
+      /** Share count the owner can check: bought + missing = sold + held now. */
+      counts: { bought: number; sold: number; heldNow: number | null };
+      /** Date of the oldest trade in all saved files. */
+      filesStart: string | null;
     };
 
 const EPS = 1e-6;
@@ -256,6 +260,12 @@ export function analyseCorporateActions(
 ): Suggestion[] {
   const suggestions: Suggestion[] = [];
   const sorted = [...transactions].sort(stableTransactionSort);
+  const filesStart = sorted.find((row) => row.kind === "buy" || row.kind === "sell")?.occurredAt.slice(0, 10) ?? null;
+  const countsOf = (rows: CanonicalTransaction[], heldNow: number | null) => ({
+    bought: rows.filter((row) => row.kind === "buy" || row.kind === "opening-balance").reduce((sum, row) => sum + (row.quantity ?? 0), 0),
+    sold: rows.filter((row) => row.kind === "sell").reduce((sum, row) => sum + (row.quantity ?? 0), 0),
+    heldNow,
+  });
 
   // Symbols known per instrument (from trades and holdings).
   const symbolOf = new Map<string, string>(knownNames);
@@ -362,7 +372,9 @@ export function analyseCorporateActions(
           quantity: zerodha,
           beforeDate: previousDay(new Date().toISOString().slice(0, 10)),
           firstSeen: "in Zerodha holdings",
-          reason: `Zerodha shows ${zerodha} ${symbol} shares, but your tradebook files have no purchase of them — most likely bought before your files start, an IPO allotment, a transfer, or shares from a bonus or demerger.`,
+          reason: `Zerodha shows ${zerodha} ${symbol} shares, but none of them has a purchase in your files.`,
+          counts: { bought: 0, sold: 0, heldNow: zerodha },
+          filesStart,
         });
       }
       continue;
@@ -404,10 +416,14 @@ export function analyseCorporateActions(
         continue;
       }
 
-      const soldTotal = rows.filter((row) => row.kind === "sell").reduce((sum, row) => sum + (row.quantity ?? 0), 0);
       const laterBuys = rows.slice(base.firstOversell! + 1).filter((row) => row.kind === "buy");
       const laterBought = laterBuys.reduce((sum, row) => sum + (row.quantity ?? 0), 0);
-      const missingQuantity = Math.round(needed * 1e6) / 1e6;
+      const heldNow = holdings === null ? null : zerodha ?? 0;
+      const counts = countsOf(rows, heldNow);
+      const hasRatioRows = rows.some((row) => row.kind === "split" || row.kind === "bonus");
+      // Simple balance the owner can check: sold + held now − bought (when no split/bonus complicates it).
+      const balance = heldNow === null || hasRatioRows ? needed : Math.max(needed, counts.sold + heldNow - counts.bought);
+      const missingQuantity = Math.round(balance * 1e6) / 1e6;
       const after =
         laterBuys.length > 0
           ? ` Afterwards you bought ${laterBought} again (first on ${day(laterBuys[0]!.occurredAt)}).`
@@ -423,9 +439,10 @@ export function analyseCorporateActions(
           beforeDate: previousDay(saleDay),
           firstSeen: `first sale on ${saleDay}`,
           reason:
-            `You sold ${firstSale.quantity} ${symbol} shares on ${saleDay}${soldTotal > (firstSale.quantity ?? 0) ? ` (${soldTotal} in total)` : ""}, but your tradebook files don't show when you bought ${missingQuantity} of them. ` +
-            `You can only sell shares you already own, so they were most likely bought before your files start — or came from an IPO, a transfer, a bonus or a demerger.` +
+            `${missingQuantity} of your ${symbol} shares have no purchase in your files. The first sale that needed them was on ${saleDay}.` +
             after,
+          counts,
+          filesStart,
         });
       }
       continue;
