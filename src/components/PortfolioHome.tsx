@@ -42,6 +42,8 @@ export interface PortfolioHomeProps {
   onAddHistory: () => void;
   /** Told whether Zerodha holdings are loaded, so the page can return here after an upload. */
   onConnectedChange?: (connected: boolean) => void;
+  /** Told each time holdings load, so today's trades can be synced. */
+  onHoldingsLoaded?: (holdings: KiteHolding[]) => void;
 }
 
 const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
@@ -69,7 +71,7 @@ function rowNote(row: ReconciledHolding, hasHistory: boolean): { text: string; t
   return { text: "No buys found in history", tone: "warn" };
 }
 
-export default function PortfolioHome({ positions, hasHistory, instrumentsMissingHistory, booked, onAddHistory, onConnectedChange }: PortfolioHomeProps) {
+export default function PortfolioHome({ positions, hasHistory, instrumentsMissingHistory, booked, onAddHistory, onConnectedChange, onHoldingsLoaded }: PortfolioHomeProps) {
   const [state, setState] = useState<ConnectionState>({ kind: "checking" });
   const [banner, setBanner] = useState<string | null>(null);
 
@@ -101,6 +103,9 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
   useEffect(() => {
     onConnectedChange?.(state.kind === "connected");
   }, [state.kind, onConnectedChange]);
+  useEffect(() => {
+    if (state.kind === "connected") onHoldingsLoaded?.(state.holdings);
+  }, [state, onHoldingsLoaded]);
 
   async function disconnect() {
     await fetch("/api/zerodha/logout", { method: "POST" }).catch(() => undefined);

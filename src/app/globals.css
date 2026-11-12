@@ -578,3 +578,11 @@ h3 {
 /* Gain / loss amounts */
 .is-gain { color: var(--green-dark, #1d6b4a); }
 .is-loss { color: #b42318; }
+
+/* Saved history (browser storage) */
+.saved-history { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 18px; }
+.saved-history > div:first-child { display: grid; gap: 4px; min-width: 240px; flex: 1; }
+.saved-history span, .saved-history small { color: var(--muted); font-size: 13px; }
+.saved-history small { color: var(--green-dark); }
+.saved-history-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.saved-history-actions label { cursor: pointer; }

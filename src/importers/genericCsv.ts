@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import { QUANTITY_KINDS, validateTransaction, type CanonicalTransaction, type TransactionKind } from "../domain/transaction";
+import { normalizeTradeId } from "./kiteTrades";
 
 export interface CsvImportIssue {
   code: string;
@@ -205,7 +206,7 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
     const transactionId = explicitTransactionId
       ? explicitTransactionId
       : brokerTradeId
-        ? `${normalizedExchange || "UNKNOWN"}:${(date ?? "").trim().slice(0, 10)}:${brokerTradeId}`
+        ? `${normalizedExchange || "UNKNOWN"}:${(date ?? "").trim().slice(0, 10)}:${normalizeTradeId(brokerTradeId)}`
         : undefined;
     // Indian exchange tradebooks commonly omit currency because NSE/BSE cash
     // equity trades are denominated in INR. Infer only for these explicit

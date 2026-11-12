@@ -5,7 +5,7 @@ import {
   type InstrumentReference,
   type InstrumentResolution,
 } from "../domain/instrument";
-import { validateTransaction } from "../domain/transaction";
+import { validateTransaction, type CanonicalTransaction } from "../domain/transaction";
 import { buildLedger, type LedgerResult } from "../engine/buildLedger";
 import { calculatePortfolioPnL, type PortfolioPnL } from "../engine/calculatePortfolioPnL";
 import { buildPositionValuations } from "../engine/quoteValuations";
@@ -164,14 +164,19 @@ export function mergeImportResults(results: GenericCsvImportResult[]): GenericCs
 export interface ImportReviewProps {
   /** Called with the calculated ledger (or null when cleared) so other panels can use the history. */
   onLedgerChange?: (ledger: LedgerResult | null) => void;
+  /** Called with the accepted trades of the selected file(s), so they can be saved. */
+  onTransactionsImported?: (transactions: CanonicalTransaction[]) => void;
 }
 
-export default function ImportReview({ onLedgerChange }: ImportReviewProps = {}) {
+export default function ImportReview({ onLedgerChange, onTransactionsImported }: ImportReviewProps = {}) {
   const [result, setResult] = useState<GenericCsvImportResult | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisSnapshot | null>(null);
   useEffect(() => {
     onLedgerChange?.(analysis?.ledger ?? null);
   }, [analysis, onLedgerChange]);
+  useEffect(() => {
+    if (result && result.transactions.length > 0) onTransactionsImported?.(result.transactions);
+  }, [result, onTransactionsImported]);
   const [resolutionByRow, setResolutionByRow] = useState<Record<number, InstrumentResolution>>({});
   const [resolutionError, setResolutionError] = useState<string | null>(null);
   const [masterRetrievedAt, setMasterRetrievedAt] = useState<string | null>(null);
