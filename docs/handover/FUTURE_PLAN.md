@@ -29,13 +29,16 @@ Provider registry (Zerodha, Upstox, AMFI, later Groww), coverage report (what wa
 which dates, what's missing), targeted prompts asking only for the specific file that's missing.
 Groww/INDmoney: research only first.
 
-## Phase 5 — Accounting completeness ⬜
-Charges from the P&L statement (Q3), corporate actions UI (Q8), dividends, instrument master with
-symbol changes/aliases, mergers.
+## Phase 5 — Accounting completeness 🟡
+- ✅ Splits/bonuses (detected from own data), demergers (verified list + manual), shares without a buy
+- ⬜ Charges from the P&L statement (Q3), dividends, mergers, symbol changes/aliases
 
 ## Phase 6 — Hardening ⬜
 UI tests in CI, security review (secrets server-side, rate limits, cookie/OAuth flow), simplify the
 detailed trade-history view, refresh README/progress docs.
+
+## Phase 6b — Multiple platforms ⬜ (owner will return to it — OPEN_QUESTIONS Q12)
+Platform label per trade, combined + per-platform views, Coin MFs, INDmoney stocks, CAS for all MFs.
 
 ## Phase 7 — Sharing (future, deferred) ⬜
 Friends/closed group: per-user sign-in and data, cloud DB, Kite terms check, hosting cost.

@@ -9,9 +9,11 @@ export interface SavedHistory {
   transactions: CanonicalTransaction[];
   updatedAt: string | null;
   lastZerodhaSyncAt: string | null;
+  /** Suggestions the owner said "not this" to. */
+  dismissed: string[];
 }
 
-export const EMPTY_HISTORY: SavedHistory = { transactions: [], updatedAt: null, lastZerodhaSyncAt: null };
+export const EMPTY_HISTORY: SavedHistory = { transactions: [], updatedAt: null, lastZerodhaSyncAt: null, dismissed: [] };
 
 const DB_NAME = "smartfolio";
 const DB_VERSION = 1;
@@ -20,16 +22,27 @@ const KEY = "main";
 const BACKUP_APP = "smartfolio-analyser";
 const BACKUP_VERSION = 1;
 
+/** Removes saved entries by ID (used to undo a manual adjustment). */
+export function removeTransactions(existing: CanonicalTransaction[], ids: Set<string>): CanonicalTransaction[] {
+  return existing.filter((transaction) => !ids.has(transaction.transactionId));
+}
+
 /** Adds incoming trades not already saved (same transaction ID). Existing trades win. */
 export function mergeTransactions(
   existing: CanonicalTransaction[],
   incoming: CanonicalTransaction[],
 ): { merged: CanonicalTransaction[]; added: number } {
-  const seen = new Set(existing.map((transaction) => transaction.transactionId));
+  const indexById = new Map(existing.map((transaction, index) => [transaction.transactionId, index]));
+  const seen = new Set(indexById.keys());
   const merged = [...existing];
   let added = 0;
   for (const transaction of incoming) {
-    if (seen.has(transaction.transactionId)) continue;
+    if (seen.has(transaction.transactionId)) {
+      // Keep the saved trade, but learn its symbol if it was saved without one.
+      const index = indexById.get(transaction.transactionId);
+      if (index !== undefined && !merged[index]!.symbol && transaction.symbol) merged[index] = { ...merged[index]!, symbol: transaction.symbol };
+      continue;
+    }
     seen.add(transaction.transactionId);
     merged.push(transaction);
     added += 1;
@@ -118,6 +131,7 @@ export async function loadHistory(): Promise<SavedHistory> {
       transactions,
       updatedAt: typeof saved.updatedAt === "string" ? saved.updatedAt : null,
       lastZerodhaSyncAt: typeof saved.lastZerodhaSyncAt === "string" ? saved.lastZerodhaSyncAt : null,
+      dismissed: Array.isArray(saved.dismissed) ? saved.dismissed.filter((item): item is string => typeof item === "string") : [],
     };
   } finally {
     db.close();

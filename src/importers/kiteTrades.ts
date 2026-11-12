@@ -74,6 +74,7 @@ export function kiteTradesToTransactions(trades: unknown[], isinBySymbol: Map<st
       transactionId: `${exchange}:${when.date}:${tradeId}`,
       kind: side === "BUY" ? "buy" : "sell",
       instrumentId: isin,
+      symbol,
       occurredAt: when.occurredAt,
       currency: "INR",
       quantity: trade.quantity,

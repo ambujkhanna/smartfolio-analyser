@@ -38,7 +38,9 @@ export interface PortfolioHomeProps {
   /** Instrument IDs whose sales exceeded imported buys (earlier history missing). */
   instrumentsMissingHistory: string[];
   /** Profit/loss booked by sales across all stocks with complete history (including fully sold ones). */
-  booked?: { total: number; stocks: number; skipped: number };
+  booked?: { total: number; stocks: number; skipped: number; closedTotal: number };
+  /** Number of corporate-action / missing-buy items waiting for the owner's confirmation. */
+  confirmCount?: number;
   onAddHistory: () => void;
   /** Told whether Zerodha holdings are loaded, so the page can return here after an upload. */
   onConnectedChange?: (connected: boolean) => void;
@@ -151,7 +153,7 @@ function rowNote(row: ReconciledHolding, hasHistory: boolean): { text: string; t
   return { text: "No buys found in history", tone: "warn" };
 }
 
-export default function PortfolioHome({ positions, hasHistory, instrumentsMissingHistory, booked, onAddHistory, onConnectedChange, onHoldingsLoaded }: PortfolioHomeProps) {
+export default function PortfolioHome({ positions, hasHistory, instrumentsMissingHistory, booked, onAddHistory, onConnectedChange, onHoldingsLoaded, confirmCount = 0 }: PortfolioHomeProps) {
   const [state, setState] = useState<ConnectionState>({ kind: "checking" });
   const [banner, setBanner] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -322,24 +324,42 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
 
           {hasHistory ? (
             <>
+              {confirmCount > 0 ? (
+                <a className="home-banner confirm-banner" href="#needs-confirmation">
+                  {confirmCount} item{confirmCount === 1 ? "" : "s"} need your confirmation (splits, bonuses, demergers or shares
+                  without a buy). They can change the figures below — review them ↓
+                </a>
+              ) : null}
               <div className="pnl-stats home-stats">
                 <div>
-                  <strong><Signed value={booked?.total ?? 0} /></strong>
-                  <span title="Profit/loss already locked in by selling, across every stock whose history is complete (including stocks you no longer hold)">
-                    Profit booked so far ({booked?.stocks ?? 0} stock{booked?.stocks === 1 ? "" : "s"})
+                  <strong><Signed value={(booked?.closedTotal ?? 0) + lifecycleTotals.overall} /></strong>
+                  <span className="th-tip" tabIndex={0} data-tip="Your net result: profit/loss booked on stocks you've fully sold, plus the overall result on stocks you still hold (booked + current). Gains and losses offset each other here.">
+                    Whole portfolio, net
+                  </span>
+                </div>
+                <div>
+                  <strong><Signed value={lifecycleTotals.overall} /></strong>
+                  <span className="th-tip" tabIndex={0} data-tip="For stocks you still hold: today's value minus the money still in them. Gains on one stock offset losses on another.">
+                    Net on current stocks
                   </span>
                 </div>
                 <div>
                   <strong><Signed value={lifecycleTotals.unrealized} /></strong>
-                  <span title="Gain/loss on shares you still hold, against your real average cost">Current profit/loss on holdings</span>
+                  <span className="th-tip" tabIndex={0} data-tip="Gain/loss on the shares you still hold, against your real average cost (excludes profit/loss already booked).">
+                    Current P&amp;L on holdings
+                  </span>
                 </div>
                 <div>
-                  <strong><Signed value={lifecycleTotals.overall} /></strong>
-                  <span title="Booked + current, for stocks you still hold: today's value minus the money still in them">Overall on current stocks</span>
+                  <strong><Signed value={booked?.total ?? 0} /></strong>
+                  <span className="th-tip" tabIndex={0} data-tip="Profit/loss already locked in by selling, across every stock with complete history, including stocks you no longer hold.">
+                    Booked so far ({booked?.stocks ?? 0} stock{booked?.stocks === 1 ? "" : "s"})
+                  </span>
                 </div>
                 <div>
                   <strong className={lifecycleTotals.toRecover > 0 ? "is-loss" : ""}>{formatMoney(lifecycleTotals.toRecover)}</strong>
-                  <span title="How much your current stocks still need to rise, in total, to give back all the money you put in">Still to recover</span>
+                  <span className="th-tip" tabIndex={0} data-tip="Added up only over stocks that are down: how much those stocks must rise to return all the money you put in them. Gains on other stocks are NOT subtracted here — see the net figures for that.">
+                    Losing stocks still need
+                  </span>
                 </div>
               </div>
               <p className="home-note">
@@ -361,7 +381,7 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
           ) : needsHistory.length > 0 || instrumentsMissingHistory.length > 0 ? (
             <div className="ask-card is-warning">
               <strong>Some holdings need earlier trades</strong>
-              <p><b>What:</b> trades from before your uploaded tradebook starts, for {needsHistory.length || instrumentsMissingHistory.length} stock{(needsHistory.length || instrumentsMissingHistory.length) === 1 ? "" : "s"} ({needsHistory.slice(0, 5).map((row) => row.symbols[0] ?? row.isin).join(", ")}{needsHistory.length > 5 ? "…" : ""}).</p>
+              <p><b>What:</b> trades from before your uploaded tradebook starts, for {needsHistory.length || instrumentsMissingHistory.length} stock{(needsHistory.length || instrumentsMissingHistory.length) === 1 ? "" : "s"} {needsHistory.length > 0 ? ` (${needsHistory.slice(0, 5).map((row) => row.symbols[0] ?? row.isin).join(", ")}${needsHistory.length > 5 ? "…" : ""})` : ""}.{confirmCount > 0 ? " First check “Needs your confirmation” below: a split, bonus, demerger or IPO may explain it without another file." : ""}</p>
               <p><b>Why:</b> these shares were bought (or sold) outside the uploaded date range, so their real average cost can&rsquo;t be calculated yet.</p>
               <p><b>How:</b> download the tradebooks for the earlier years from Zerodha Console, then click below and select <b>all</b> your tradebook files together (Ctrl-click). Overlapping dates are fine; each trade is counted once.</p>
               <button type="button" className="secondary-action-button" onClick={onAddHistory}>Upload another tradebook</button>

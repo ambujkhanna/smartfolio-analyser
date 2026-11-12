@@ -1,7 +1,18 @@
-export type TransactionKind = "buy" | "sell" | "opening-balance" | "fee" | "dividend" | "split" | "bonus";
+export type TransactionKind = "buy" | "sell" | "opening-balance" | "fee" | "dividend" | "split" | "bonus" | "demerger";
 
 /** Kinds that change the quantity held of a specific instrument. */
-export const QUANTITY_KINDS: readonly TransactionKind[] = ["buy", "sell", "opening-balance", "split", "bonus"];
+export const QUANTITY_KINDS: readonly TransactionKind[] = ["buy", "sell", "opening-balance", "split", "bonus", "demerger"];
+
+/**
+ * Demerger: for every share of the parent held at the ex-date, the holder receives
+ * `ratio` shares of each resulting company. The original cost is divided as the
+ * company publishes it: the parent keeps `parentCostFraction`, each new company gets
+ * its `costFraction` (all fractions add up to 1). Purchase dates carry over.
+ */
+export interface DemergerTerms {
+  parentCostFraction: number;
+  children: Array<{ instrumentId: string; ratio: number; costFraction: number; symbol?: string }>;
+}
 
 export interface TransactionSource {
   fileName: string;
@@ -28,6 +39,12 @@ export interface CanonicalTransaction {
    * Total cost basis is unchanged; only quantity (and so per-unit cost) changes.
    */
   ratio?: number;
+  /** Demerger only. */
+  demerger?: DemergerTerms;
+  /** Trading symbol when known (e.g. WIPRO), for display only. */
+  symbol?: string;
+  /** Short human note, e.g. why a manual entry was made. */
+  note?: string;
   source: TransactionSource;
 }
 
@@ -48,6 +65,7 @@ const transactionKinds: readonly TransactionKind[] = [
   "dividend",
   "split",
   "bonus",
+  "demerger",
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -161,6 +179,46 @@ export function validateTransaction(input: unknown): TransactionValidation {
     addIssue("ratio", "A ratio is only valid for split and bonus rows.");
   }
 
+  if (kind === "demerger") {
+    const terms = input.demerger;
+    if (!isRecord(terms) || !Array.isArray(terms.children) || terms.children.length === 0) {
+      addIssue("demerger", "A demerger needs the parent's cost share and at least one resulting company.");
+    } else {
+      const parentShare = terms.parentCostFraction;
+      if (!isNonNegativeFiniteNumber(parentShare) || parentShare > 1) {
+        addIssue("demerger.parentCostFraction", "The parent's cost share must be between 0 and 1.");
+      }
+      let total = typeof parentShare === "number" ? parentShare : 0;
+      for (const child of terms.children) {
+        if (
+          !isRecord(child) ||
+          typeof child.instrumentId !== "string" ||
+          !child.instrumentId.trim() ||
+          !isPositiveFiniteNumber(child.ratio) ||
+          !isPositiveFiniteNumber(child.costFraction) ||
+          child.costFraction > 1 ||
+          child.instrumentId === instrumentId
+        ) {
+          addIssue("demerger.children", "Each resulting company needs its own identity, a positive share ratio and a cost share between 0 and 1.");
+          break;
+        }
+        total += child.costFraction;
+      }
+      if (Math.abs(total - 1) > 0.005) {
+        addIssue("demerger", "Cost shares of the parent and resulting companies must add up to 100%.");
+      }
+    }
+  } else if (input.demerger !== undefined) {
+    addIssue("demerger", "Demerger terms are only valid for demerger rows.");
+  }
+
+  if (input.symbol !== undefined && (typeof input.symbol !== "string" || input.symbol.length > 40)) {
+    addIssue("symbol", "Symbol must be short text.");
+  }
+  if (input.note !== undefined && (typeof input.note !== "string" || input.note.length > 300)) {
+    addIssue("note", "Note must be short text.");
+  }
+
   if (input.charges !== undefined && !isNonNegativeFiniteNumber(input.charges)) {
     addIssue("charges", "Charges must be a finite non-negative number.");
   }
@@ -199,6 +257,20 @@ export function validateTransaction(input: unknown): TransactionValidation {
   if (typeof input.amount === "number") transaction.amount = input.amount;
   if (typeof input.charges === "number") transaction.charges = input.charges;
   if (typeof input.ratio === "number") transaction.ratio = input.ratio;
+  if (kind === "demerger" && isRecord(input.demerger)) {
+    const terms = input.demerger as unknown as DemergerTerms;
+    transaction.demerger = {
+      parentCostFraction: terms.parentCostFraction,
+      children: terms.children.map((child) => ({
+        instrumentId: child.instrumentId,
+        ratio: child.ratio,
+        costFraction: child.costFraction,
+        ...(typeof child.symbol === "string" ? { symbol: child.symbol } : {}),
+      })),
+    };
+  }
+  if (typeof input.symbol === "string" && input.symbol.trim()) transaction.symbol = input.symbol.trim();
+  if (typeof input.note === "string" && input.note.trim()) transaction.note = input.note.trim();
 
   return { status: "valid", transaction };
 }

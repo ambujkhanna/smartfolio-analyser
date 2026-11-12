@@ -32,7 +32,24 @@ export interface InstrumentLedger {
   dividends: number;
   knownOpeningBasis: number;
   hasUnknownOpeningBasis: boolean;
+  /** Cost received from a parent company in a demerger. */
+  costTransferredIn: number;
+  /** Cost passed on to resulting companies in a demerger. */
+  costTransferredOut: number;
   lots: LotSnapshot[];
+}
+
+/** Money still in a stock: buys + opening cost + fees + cost received − sale proceeds − dividends − cost passed on. */
+export function netInvestedFor(instrument: InstrumentLedger): number {
+  return (
+    instrument.buyOutflows +
+    instrument.knownOpeningBasis +
+    instrument.standaloneFees +
+    instrument.costTransferredIn -
+    instrument.netSaleProceeds -
+    instrument.dividends -
+    instrument.costTransferredOut
+  );
 }
 
 export interface LedgerCashFlows {
@@ -68,6 +85,8 @@ interface MutableInstrumentLedger {
   realizedPnlComplete: boolean;
   realizedGains: number;
   realizedLosses: number;
+  costTransferredIn: number;
+  costTransferredOut: number;
   buyOutflows: number;
   netSaleProceeds: number;
   standaloneFees: number;
@@ -92,6 +111,7 @@ function economicSignature(transaction: CanonicalTransaction): string {
     transaction.amount ?? null,
     transaction.charges ?? null,
     transaction.ratio ?? null,
+    transaction.demerger ? JSON.stringify(transaction.demerger) : null,
   ]);
 }
 
@@ -99,7 +119,7 @@ function describeSources(group: CanonicalTransaction[]): string {
   return group.map((transaction) => `${transaction.source.fileName} row ${transaction.source.rowNumber}`).join(", ");
 }
 
-function stableTransactionSort(a: CanonicalTransaction, b: CanonicalTransaction): number {
+export function stableTransactionSort(a: CanonicalTransaction, b: CanonicalTransaction): number {
   const timeDifference = Date.parse(a.occurredAt) - Date.parse(b.occurredAt);
   if (timeDifference !== 0) return timeDifference;
   const fileDifference = a.source.fileName.localeCompare(b.source.fileName);
@@ -185,6 +205,8 @@ export function buildLedger(input: unknown[]): LedgerResult {
         realizedPnlComplete: true,
         realizedGains: 0,
         realizedLosses: 0,
+        costTransferredIn: 0,
+        costTransferredOut: 0,
         buyOutflows: 0,
         netSaleProceeds: 0,
         standaloneFees: 0,
@@ -375,6 +397,43 @@ export function buildLedger(input: unknown[]): LedgerResult {
       continue;
     }
 
+    if (transaction.kind === "demerger") {
+      const terms = transaction.demerger as NonNullable<CanonicalTransaction["demerger"]>;
+      const parent = byInstrument.get(instrumentId as string);
+      const heldBefore = parent ? parent.lots.reduce((sum, lot) => sum + lot.remainingQuantity, 0) : 0;
+      if (!parent || heldBefore <= 1e-9) {
+        warnings.push({
+          code: "CORPORATE_ACTION_WITHOUT_POSITION",
+          transactionId: transaction.transactionId,
+          instrumentId,
+          message: `Demerger of ${instrumentId} on ${transaction.occurredAt.slice(0, 10)} found no shares held; nothing was moved.`,
+        });
+        continue;
+      }
+      for (const child of terms.children) {
+        const childLedger = getLedger(child.instrumentId);
+        for (const lot of parent.lots) {
+          if (lot.remainingQuantity <= 1e-9) continue;
+          const movedCost = lot.remainingCostTotal === null ? null : lot.remainingCostTotal * child.costFraction;
+          childLedger.lots.push({
+            openedByTransactionId: `${transaction.transactionId}>${lot.openedByTransactionId}`,
+            remainingQuantity: lot.remainingQuantity * child.ratio,
+            remainingCostTotal: movedCost,
+          });
+          if (movedCost === null) {
+            childLedger.hasUnknownOpeningBasis = true;
+          } else {
+            childLedger.costTransferredIn += movedCost;
+            parent.costTransferredOut += movedCost;
+          }
+        }
+      }
+      for (const lot of parent.lots) {
+        if (lot.remainingCostTotal !== null) lot.remainingCostTotal *= terms.parentCostFraction;
+      }
+      continue;
+    }
+
     if (transaction.kind === "fee") {
       const amount = transaction.amount as number;
       cashFlows.standaloneFees += amount;
@@ -416,6 +475,8 @@ export function buildLedger(input: unknown[]): LedgerResult {
         realizedPnlComplete,
         realizedGains: ledger.realizedGains,
         realizedLosses: ledger.realizedLosses,
+        costTransferredIn: ledger.costTransferredIn,
+        costTransferredOut: ledger.costTransferredOut,
         buyOutflows: ledger.buyOutflows,
         netSaleProceeds: ledger.netSaleProceeds,
         standaloneFees: ledger.standaloneFees,

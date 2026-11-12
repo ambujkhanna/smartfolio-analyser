@@ -241,6 +241,7 @@ export function parseGenericCsv(csvText: string, fileName: string): GenericCsvIm
       currency,
       source: { fileName, rowNumber },
     };
+    if (displaySymbol && displaySymbol.trim() && displaySymbol.trim().length <= 40) candidate.symbol = displaySymbol.trim().toUpperCase();
 
     if (quantity !== undefined) candidate.quantity = quantity;
     if (unitPrice !== undefined) candidate.unitPrice = unitPrice;

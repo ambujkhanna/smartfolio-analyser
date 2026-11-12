@@ -28,6 +28,12 @@
 - [x] Plain-language list of "sales without an earlier buy in your files" with the fix.
 - [x] After uploading while connected, the page returns to the portfolio table.
 - [x] Live quotes via Upstox (equity/ETF) and AMFI (mutual funds) in the detailed view.
+- [x] Clearer summary tiles: whole portfolio net, net on current stocks, current P&L, booked so far,
+      losing stocks still need (see DECISIONS P8).
+- [x] **Needs your confirmation** panel: detected splits/bonuses (from own data), verified demergers
+      (Tata Motors 2025: TMPV 68.85% / TMCV 31.15%; Vedanta 2026: 52.34 / 21.49 / 12.23 / 7.15 / 6.79%),
+      shares without a buy (IPO / transfer / before files / gift / other demerger); confirm, dismiss, undo.
+- [x] Demerger accounting in the engine; trades now remember their stock symbol.
 - [x] Build label (commit + environment) in the footer and `/api/version`.
 
 ### Hosting and security
@@ -46,6 +52,10 @@
 - [ ] Saved history survives closing and reopening the browser; backup/restore round trip.
 - [ ] Sticky header / tooltips / search / chart on the owner's screen sizes (desktop + phone).
 - [ ] "Fetch live quotes" on Production with the Upstox token (leave the access-key box empty).
+- [ ] Apply the Tata Motors and Vedanta demerger cards on real data; check TMPV/TMCV and the Vedanta
+      companies' figures, and that the Vedanta child stocks were matched to the right holdings.
+- [ ] Review the "Losing stocks still need" vs "Whole portfolio, net" figures after confirmations.
+- [ ] Re-upload tradebooks once so older saved trades also learn their stock symbols (helps matching).
 
 ## TODO (agreed, not started)
 
@@ -54,7 +64,8 @@
 - [ ] Optionally auto-run "Resolve instruments" after upload (offered; owner hasn't asked yet).
 - [ ] Brokerage/STT/charges: the tradebook has none, so P&L is before charges. Consider importing
       Zerodha's P&L statement (charges summary) — see OPEN_QUESTIONS.
-- [ ] Corporate actions UI: let the owner enter a split/bonus when the quantity check shows a mismatch.
+- [ ] Add more verified demergers to the list as they come up (owner to name the ones they remember).
+- [ ] Mergers / amalgamations and symbol changes (not handled yet).
 - [ ] Dividends (from broker data where available, otherwise flagged).
 - [ ] Other brokers (Groww, INDmoney, Upstox) — research whether their APIs give past trades for free.
 - [ ] Simplify the detailed "Trade history" view (still technical: resolve/calculate/reconcile/quotes panels).

@@ -59,8 +59,20 @@ orders and trades in Preview; recurring problem of the branch alias serving a st
 21. **Owner asked** for a sticky table header, tooltips on column headers, stock search, and a helpful
     chart → built (diverging "where each stock stands overall" bars).
 22. **Owner asked** for these handover files so no discussion is lost or repeated, and to push everything.
+23. **Owner asked** to combine Zerodha, Coin, INDmoney and smallcase in one place ("stop me if over-engineering").
+    Answer: not over-engineering if file-first; smallcase already included; plan in OPEN_QUESTIONS Q12.
+    **Owner will come back to this topic later.**
+24. **Owner reported** wrong values for demerged stocks (TMPV −₹18k because of the TMPV/TMCV demerger; Vedanta
+    split into five). Explained why (all original cost stayed on the parent) and proposed a demerger event.
+25. **Owner asked** whether the app can fetch such events itself, and why "Still to recover" showed about ₹1.23 lakh.
+    Answers: splits/bonuses can be detected; demerger cost splits need the company's notice; NSE/BSE scraping is
+    not allowed (bot protection) → use own data + verified list + owner confirmation. "Still to recover" was a
+    gross figure over losing stocks only (gains elsewhere not subtracted) → tiles relabelled, net figures added.
+26. **Owner approved all four steps** → built clearer tiles, demerger accounting, detection of splits/bonuses,
+    verified Tata Motors and Vedanta demergers, and the shares-without-a-buy helper ("Needs your confirmation").
+27. **Owner asked** for an end-to-end "change → push → deploy" guide → DEV_WORKFLOW.md.
 
-## Where things stand at the end of 12 Nov
+## Where things stand at the end of 12 Nov (updated after item 27)
 
 Everything above is pushed to `claude/phase0-stabilise` and `main` (Production). See
 PROGRESS_AND_TODO.md for what still needs checking on real data, and OPEN_QUESTIONS.md for pending choices.

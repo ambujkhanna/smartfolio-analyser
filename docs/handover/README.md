@@ -12,6 +12,7 @@ project **without re-discussing settled points**. Read in this order:
 | 3 | [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) | Points still to discuss or decide |
 | 4 | [FUTURE_PLAN.md](FUTURE_PLAN.md) | Phased roadmap with status |
 | 5 | [CONVERSATION_LOG.md](CONVERSATION_LOG.md) | What was discussed, in order, and what came out of it |
+| 6 | [DEV_WORKFLOW.md](DEV_WORKFLOW.md) | How to make a change and ship it: checks → push → Preview → `main` → Production |
 
 Older context: [../PROJECT_LOG.md](../PROJECT_LOG.md) (29 Oct 2026 specification, ChatGPT era),
 [../../plan.md](../../plan.md) (task plan), [../../progress.md](../../progress.md) (verified status),

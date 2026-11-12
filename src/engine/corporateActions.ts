@@ -1,0 +1,376 @@
+import type { CanonicalTransaction } from "../domain/transaction";
+import { stableTransactionSort } from "./buildLedger";
+
+/**
+ * Finds corporate actions the tradebook does not record, using only the owner's own
+ * data (trades + Zerodha holdings) and a small list of verified demergers. Nothing is
+ * fetched from exchange websites. Every finding is a suggestion the owner confirms;
+ * confirmed ones are saved as transactions and can be undone.
+ */
+
+// ---------------------------------------------------------------------------
+// Verified demergers (official cost-of-acquisition apportionment, published by the companies)
+// ---------------------------------------------------------------------------
+
+export interface KnownDemerger {
+  id: string;
+  title: string;
+  /** Ex-date (first day the parent trades without the entitlement), IST. */
+  exDate: string;
+  parent: { isins: string[]; symbols: string[]; name: string };
+  parentCostFraction: number;
+  children: Array<{
+    name: string;
+    /** Symbol fragments used to pre-select the matching stock in the owner's data. */
+    symbolHints: string[];
+    isin?: string;
+    ratio: number;
+    costFraction: number;
+  }>;
+  source: string;
+}
+
+export const KNOWN_DEMERGERS: KnownDemerger[] = [
+  {
+    id: "tata-motors-2025",
+    title: "Tata Motors demerger (passenger and commercial vehicles)",
+    exDate: "2025-10-14",
+    parent: { isins: ["INE155A01022"], symbols: ["TATAMOTORS", "TMPV"], name: "Tata Motors Passenger Vehicles (TMPV)" },
+    parentCostFraction: 0.6885,
+    children: [
+      { name: "Tata Motors commercial vehicles (TMCV)", symbolHints: ["TMCV", "TMLCV"], isin: "INE1TAE01010", ratio: 1, costFraction: 0.3115 },
+    ],
+    source: "Company cost-of-acquisition notice, 12 Nov 2025: TMPV 68.85%, TMCV 31.15%; 1 TMCV share per share held on 14 Oct 2025.",
+  },
+  {
+    id: "vedanta-2026",
+    title: "Vedanta demerger into five companies",
+    exDate: "2026-04-30",
+    parent: { isins: ["INE205A01025"], symbols: ["VEDL"], name: "Vedanta" },
+    parentCostFraction: 0.5234,
+    children: [
+      { name: "Malco Energy (oil & gas)", symbolHints: ["MALCO"], ratio: 1, costFraction: 0.2149 },
+      { name: "Talwandi Sabo Power", symbolHints: ["TALWANDI", "TSPL", "VEDPOWER"], ratio: 1, costFraction: 0.1223 },
+      { name: "Vedanta Aluminium Metal", symbolHints: ["ALUM", "VAML", "VEDALU"], ratio: 1, costFraction: 0.0715 },
+      { name: "Vedanta Iron & Steel", symbolHints: ["IRON", "STEEL", "VISL"], ratio: 1, costFraction: 0.0679 },
+    ],
+    source: "Company cost-of-acquisition notice, 16 May 2026 (scheme effective 1 May 2026): Vedanta 52.34%, Malco Energy 21.49%, Talwandi Sabo Power 12.23%, Vedanta Aluminium Metal 7.15%, Vedanta Iron & Steel 6.79%; 1 share of each per Vedanta share.",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Suggestions
+// ---------------------------------------------------------------------------
+
+export interface HoldingQuantity {
+  isin: string;
+  symbol?: string;
+  quantity: number;
+}
+
+export type Suggestion =
+  | {
+      type: "split-bonus";
+      id: string;
+      instrumentId: string;
+      symbol: string;
+      ratio: number;
+      /** The event happened between these two dates (inclusive window). */
+      windowFrom: string;
+      windowTo: string | null;
+      reason: string;
+      transaction: CanonicalTransaction;
+    }
+  | {
+      type: "known-demerger";
+      id: string;
+      event: KnownDemerger;
+      parentId: string;
+      parentQuantity: number;
+      /** For each child: the owner's instrument pre-selected (or null) and choices. */
+      children: Array<{ index: number; preselected: string | null }>;
+      options: Array<{ instrumentId: string; label: string }>;
+    }
+  | {
+      type: "quantity-mismatch";
+      id: string;
+      instrumentId: string;
+      symbol: string;
+      tradesQuantity: number;
+      zerodhaQuantity: number;
+    }
+  | {
+      type: "missing-buys";
+      id: string;
+      instrumentId: string;
+      symbol: string;
+      /** Shares sold or held that have no earlier buy in the saved trades. */
+      quantity: number;
+      /** Suggested date for the entry: the day before the first sale/appearance. */
+      beforeDate: string;
+      firstSeen: string;
+      reason: string;
+    };
+
+const EPS = 1e-6;
+const COMMON_RATIOS = [2, 3, 4, 5, 10, 1.5, 1.25, 1.2, 1.1, 4 / 3, 5 / 3, 2.5, 6, 8, 20];
+
+function day(iso: string): string {
+  return iso.slice(0, 10);
+}
+
+function shiftIso(iso: string, deltaMs: number): string {
+  return new Date(Date.parse(iso) + deltaMs).toISOString();
+}
+
+function previousDay(date: string): string {
+  const d = new Date(date + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export function formatRatio(ratio: number): string {
+  // Bonus a:b gives (a+b)/b units per unit; show the common forms.
+  const bonus: Record<string, string> = { "2": "1:1 bonus or 1→2 split", "1.5": "1:2 bonus", "3": "2:1 bonus or 1→3 split", "1.25": "1:4 bonus", "1.2": "1:5 bonus", "1.1": "1:10 bonus", "5": "1→5 split (e.g. ₹10 → ₹2 face value)", "10": "1→10 split (e.g. ₹10 → ₹1 face value)" };
+  const key = String(Math.round(ratio * 1000) / 1000);
+  return bonus[key] ?? `×${key}`;
+}
+
+interface Simulation {
+  ok: boolean;
+  finalQuantity: number;
+  /** Index of the first sale that exceeds the shares held. */
+  firstOversell: number | null;
+  /** Shares held just before the first oversell. */
+  heldAtOversell: number;
+}
+
+/** Replays quantities only, optionally multiplying holdings by `ratio` just before transaction `at`. */
+function simulate(rows: CanonicalTransaction[], ratio = 1, at = -1): Simulation {
+  let held = 0;
+  for (let index = 0; index <= rows.length; index += 1) {
+    if (index === at) held *= ratio;
+    if (index === rows.length) break;
+    const row = rows[index]!;
+    const quantity = row.quantity ?? 0;
+    if (row.kind === "buy" || row.kind === "opening-balance") held += quantity;
+    else if (row.kind === "sell") {
+      if (quantity > held + EPS) return { ok: false, finalQuantity: held, firstOversell: index, heldAtOversell: held };
+      held -= quantity;
+    } else if ((row.kind === "split" || row.kind === "bonus") && row.ratio) held *= row.ratio;
+  }
+  return { ok: true, finalQuantity: held, firstOversell: null, heldAtOversell: held };
+}
+
+export function analyseCorporateActions(
+  transactions: CanonicalTransaction[],
+  holdings: HoldingQuantity[] | null,
+  dismissed: Set<string> = new Set(),
+): Suggestion[] {
+  const suggestions: Suggestion[] = [];
+  const sorted = [...transactions].sort(stableTransactionSort);
+
+  // Symbols known per instrument (from trades and holdings).
+  const symbolOf = new Map<string, string>();
+  for (const row of sorted) if (row.instrumentId && row.symbol) symbolOf.set(row.instrumentId, row.symbol);
+  for (const holding of holdings ?? []) if (holding.symbol) symbolOf.set(holding.isin, holding.symbol.toUpperCase());
+  const label = (id: string) => symbolOf.get(id) ?? id;
+
+  // Demerger children get shares (and cost) from the parent: treat them as acquisitions.
+  const receivedFromDemerger = new Map<string, number>();
+  for (const row of sorted) {
+    if (row.kind !== "demerger" || !row.demerger) continue;
+    for (const child of row.demerger.children) receivedFromDemerger.set(child.instrumentId, (receivedFromDemerger.get(child.instrumentId) ?? 0) + 1);
+  }
+
+  const rowsById = new Map<string, CanonicalTransaction[]>();
+  for (const row of sorted) {
+    if (!row.instrumentId || !["buy", "sell", "opening-balance", "split", "bonus"].includes(row.kind)) continue;
+    const list = rowsById.get(row.instrumentId) ?? [];
+    list.push(row);
+    rowsById.set(row.instrumentId, list);
+  }
+  const holdingQty = new Map((holdings ?? []).map((holding) => [holding.isin, holding.quantity]));
+  const ids = new Set<string>([...rowsById.keys(), ...holdingQty.keys()]);
+
+  // Known demergers first (they explain "missing buys" of the new companies).
+  const orphanIds = new Set<string>();
+  for (const id of ids) {
+    const rows = rowsById.get(id) ?? [];
+    const sim = simulate(rows);
+    const onlyHolding = rows.length === 0 && (holdingQty.get(id) ?? 0) > 0;
+    if (onlyHolding || (!sim.ok && sim.heldAtOversell <= EPS)) orphanIds.add(id);
+  }
+  const appliedIds = new Set(sorted.map((row) => row.transactionId));
+  const claimedChildren = new Set<string>();
+  for (const event of KNOWN_DEMERGERS) {
+    const suggestionId = `known:${event.id}`;
+    if (appliedIds.has(suggestionId) || dismissed.has(suggestionId)) continue;
+    const parentId = [...ids].find(
+      (id) => event.parent.isins.includes(id) || event.parent.symbols.includes((symbolOf.get(id) ?? "").toUpperCase()),
+    );
+    if (!parentId) continue;
+    const before = (rowsById.get(parentId) ?? []).filter((row) => day(row.occurredAt) < event.exDate);
+    const held = simulate(before).finalQuantity;
+    if (held <= EPS) continue;
+    const options = [...orphanIds].filter((id) => id !== parentId).map((id) => ({ instrumentId: id, label: label(id) }));
+    const children = event.children.map((child, index) => {
+      const match =
+        options.find((option) => child.isin && option.instrumentId === child.isin) ??
+        options.find((option) => child.symbolHints.some((hint) => option.label.toUpperCase().includes(hint)));
+      if (match) claimedChildren.add(match.instrumentId);
+      return { index, preselected: match?.instrumentId ?? null };
+    });
+    suggestions.push({ type: "known-demerger", id: suggestionId, event, parentId, parentQuantity: held, children, options });
+  }
+
+  for (const id of ids) {
+    const rows = rowsById.get(id) ?? [];
+    const symbol = label(id);
+    const zerodha = holdingQty.get(id);
+    const base = simulate(rows);
+    const fromDemerger = receivedFromDemerger.has(id) || claimedChildren.has(id);
+    if (fromDemerger) continue; // explained (or about to be) by a demerger
+
+    const consistent = base.ok && (zerodha === undefined || holdings === null || Math.abs(base.finalQuantity - zerodha) < EPS);
+    if (consistent) continue;
+
+    // Shares that appear without any earlier buy: bought before the files start, IPO, transfer, or a demerger.
+    if (rows.length === 0 && zerodha !== undefined && zerodha > 0) {
+      const suggestionId = `missing:${id}`;
+      if (!dismissed.has(suggestionId)) {
+        suggestions.push({
+          type: "missing-buys",
+          id: suggestionId,
+          instrumentId: id,
+          symbol,
+          quantity: zerodha,
+          beforeDate: previousDay(new Date().toISOString().slice(0, 10)),
+          firstSeen: "in Zerodha holdings",
+          reason: `Zerodha shows ${zerodha} shares but your saved trades have none.`,
+        });
+      }
+      continue;
+    }
+    if (!base.ok && base.heldAtOversell <= EPS) {
+      const firstSale = rows[base.firstOversell!]!;
+      // Quantity needed so that every later sale is covered, and Zerodha's holding matches.
+      let needed = 0;
+      let held = 0;
+      for (const row of rows) {
+        const quantity = row.quantity ?? 0;
+        if (row.kind === "buy" || row.kind === "opening-balance") held += quantity;
+        else if (row.kind === "sell") {
+          if (quantity > held + EPS) {
+            needed += quantity - held;
+            held = 0;
+          } else held -= quantity;
+        } else if ((row.kind === "split" || row.kind === "bonus") && row.ratio) held *= row.ratio;
+      }
+      const suggestionId = `missing:${id}`;
+      if (!dismissed.has(suggestionId)) {
+        suggestions.push({
+          type: "missing-buys",
+          id: suggestionId,
+          instrumentId: id,
+          symbol,
+          quantity: Math.round(needed * 1e6) / 1e6,
+          beforeDate: previousDay(day(firstSale.occurredAt)),
+          firstSeen: `first sale on ${day(firstSale.occurredAt)}`,
+          reason: `You sold ${symbol} on ${day(firstSale.occurredAt)} without an earlier buy in your files.`,
+        });
+      }
+      continue;
+    }
+
+    // Shares were held, but a later sale or Zerodha's holding needs a multiple: split/bonus.
+    let feasible: Array<{ ratio: number; at: number; finalQuantity: number }> = [];
+    for (const ratio of COMMON_RATIOS) {
+      for (let at = 1; at <= rows.length; at += 1) {
+        const heldBefore = simulate(rows.slice(0, at)).finalQuantity;
+        if (heldBefore <= EPS) continue;
+        const sim = simulate(rows, ratio, at);
+        if (!sim.ok) continue;
+        if (zerodha !== undefined && holdings !== null && Math.abs(sim.finalQuantity - zerodha) > EPS) continue;
+        if (zerodha === undefined && holdings !== null && sim.finalQuantity > EPS) continue;
+        feasible.push({ ratio, at, finalQuantity: sim.finalQuantity });
+      }
+    }
+    let ratios = [...new Set(feasible.map((item) => item.ratio))];
+    if (ratios.length > 1 && holdings === null) {
+      // Holdings unknown: prefer a ratio that fits exactly (every share accounted for).
+      const exact = feasible.filter((item) => Math.abs(item.finalQuantity) < EPS);
+      const exactRatios = [...new Set(exact.map((item) => item.ratio))];
+      if (exactRatios.length === 1) {
+        feasible = exact;
+        ratios = exactRatios;
+      }
+    }
+    if (ratios.length === 1) {
+      const ratio = ratios[0]!;
+      const positions = feasible.filter((item) => item.ratio === ratio).map((item) => item.at).sort((a, b) => a - b);
+      const at = positions[positions.length - 1]!;
+      const earliest = positions[0]!;
+      const windowFrom = day(rows[earliest - 1]!.occurredAt);
+      const windowTo = at < rows.length ? day(rows[at]!.occurredAt) : null;
+      const occurredAt = at < rows.length ? shiftIso(rows[at]!.occurredAt, -1000) : shiftIso(rows[rows.length - 1]!.occurredAt, 1000);
+      const suggestionId = `split:${id}:${ratio}:${day(occurredAt)}`;
+      if (dismissed.has(suggestionId)) continue;
+      suggestions.push({
+        type: "split-bonus",
+        id: suggestionId,
+        instrumentId: id,
+        symbol,
+        ratio,
+        windowFrom,
+        windowTo,
+        reason:
+          zerodha !== undefined && holdings !== null
+            ? `Your trades add up to ${base.ok ? base.finalQuantity : "fewer"} shares but Zerodha shows ${zerodha}. A ${formatRatio(ratio)} explains it exactly.`
+            : `A later sale is bigger than the shares bought. A ${formatRatio(ratio)} explains it exactly.`,
+        transaction: {
+          transactionId: suggestionId,
+          kind: ratio === Math.round(ratio) && ratio >= 2 && [2, 5, 10].includes(ratio) ? "split" : "bonus",
+          instrumentId: id,
+          symbol,
+          occurredAt,
+          currency: "INR",
+          ratio,
+          note: `Detected from your data: ${formatRatio(ratio)} between ${windowFrom} and ${windowTo ?? "today"}.`,
+          source: { fileName: "Your confirmation", rowNumber: 1 },
+        },
+      });
+      continue;
+    }
+
+    if (zerodha !== undefined && holdings !== null && base.ok) {
+      const suggestionId = `mismatch:${id}`;
+      if (!dismissed.has(suggestionId)) {
+        suggestions.push({ type: "quantity-mismatch", id: suggestionId, instrumentId: id, symbol, tradesQuantity: base.finalQuantity, zerodhaQuantity: zerodha });
+      }
+    }
+  }
+  return suggestions;
+}
+
+/** Builds the demerger transaction for a known event once the owner has matched the children. */
+export function knownDemergerTransaction(event: KnownDemerger, parentId: string, childIds: string[]): CanonicalTransaction {
+  return {
+    transactionId: `known:${event.id}`,
+    kind: "demerger",
+    instrumentId: parentId,
+    occurredAt: `${event.exDate}T00:00:00+05:30`,
+    currency: "INR",
+    demerger: {
+      parentCostFraction: event.parentCostFraction,
+      children: event.children.map((child, index) => ({
+        instrumentId: childIds[index]!,
+        ratio: child.ratio,
+        costFraction: child.costFraction,
+        symbol: child.name,
+      })),
+    },
+    note: event.source,
+    source: { fileName: "Your confirmation", rowNumber: 1 },
+  };
+}

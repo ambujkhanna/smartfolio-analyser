@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { buildLedger, type LedgerResult } from "../engine/buildLedger";
+import { buildLedger, netInvestedFor, type LedgerResult } from "../engine/buildLedger";
 import type { KiteHolding } from "../engine/reconcileHoldings";
 import type { CanonicalTransaction } from "../domain/transaction";
 import { KITE_TRADES_SOURCE, kiteTradesToTransactions } from "../importers/kiteTrades";
@@ -12,11 +12,14 @@ import {
   fromBackup,
   loadHistory,
   mergeTransactions,
+  removeTransactions,
   saveHistory,
   toBackup,
   type SavedHistory,
 } from "../lib/tradeStore";
 import ImportReview from "./ImportReview";
+import CorporateActionsPanel from "./CorporateActionsPanel";
+import { analyseCorporateActions, type HoldingQuantity } from "../engine/corporateActions";
 import PortfolioHome from "./PortfolioHome";
 import ZerodhaPanel from "./ZerodhaPanel";
 
@@ -34,6 +37,17 @@ export default function HomeApp() {
   const connectedRef = useRef(false);
   const savedRef = useRef<SavedHistory>(EMPTY_HISTORY);
   const syncedHoldingsRef = useRef<unknown>(null);
+  const [holdingQuantities, setHoldingQuantities] = useState<HoldingQuantity[] | null>(null);
+
+  const persist = useCallback(async (next: SavedHistory) => {
+    savedRef.current = next;
+    setSaved(next);
+    try {
+      await saveHistory(next);
+    } catch {
+      setStoreMessage("Could not save in this browser (storage blocked or full). Download a backup.");
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +72,7 @@ export default function HomeApp() {
     const next: SavedHistory = {
       ...savedRef.current,
       ...extra,
+      dismissed: savedRef.current.dismissed,
       transactions: merged,
       updatedAt: added > 0 ? new Date().toISOString() : savedRef.current.updatedAt,
     };
@@ -98,6 +113,17 @@ export default function HomeApp() {
     async (holdings: KiteHolding[]) => {
       if (syncedHoldingsRef.current === holdings) return;
       syncedHoldingsRef.current = holdings;
+      setHoldingQuantities(
+        holdings.flatMap((holding) =>
+          typeof holding.isin === "string"
+            ? [{
+                isin: holding.isin.toUpperCase(),
+                symbol: typeof holding.tradingsymbol === "string" ? holding.tradingsymbol : undefined,
+                quantity: (typeof holding.quantity === "number" ? holding.quantity : 0) + (typeof holding.t1_quantity === "number" ? holding.t1_quantity : 0),
+              }]
+            : [],
+        ),
+      );
       try {
         const response = await fetch("/api/zerodha/data?type=trades", { cache: "no-store" });
         if (!response.ok) return;
@@ -187,6 +213,34 @@ export default function HomeApp() {
     () => (saved.transactions.length > 0 ? buildLedger(saved.transactions) : null),
     [saved.transactions],
   );
+  const suggestions = useMemo(
+    () => (saved.transactions.length > 0 || holdingQuantities ? analyseCorporateActions(saved.transactions, holdingQuantities, new Set(saved.dismissed)) : []),
+    [saved.transactions, saved.dismissed, holdingQuantities],
+  );
+  const adjustments = saved.transactions.filter((transaction) => transaction.source.fileName === "Your confirmation");
+  const symbolOf = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const transaction of saved.transactions) {
+      if (transaction.instrumentId && transaction.symbol) map.set(transaction.instrumentId, transaction.symbol);
+      for (const child of transaction.demerger?.children ?? []) if (child.symbol && !map.has(child.instrumentId)) map.set(child.instrumentId, child.symbol);
+    }
+    for (const holding of holdingQuantities ?? []) if (holding.symbol) map.set(holding.isin, holding.symbol);
+    return map;
+  }, [saved.transactions, holdingQuantities]);
+  const labelOf = useCallback((id: string) => symbolOf.get(id) ?? id, [symbolOf]);
+
+  async function applyAdjustment(transaction: CanonicalTransaction) {
+    const added = await addTrades([transaction]);
+    setStoreMessage(added > 0 ? "Adjustment saved. Figures updated." : "That adjustment was already saved.");
+  }
+  async function undoAdjustment(transactionId: string) {
+    await persist({ ...savedRef.current, transactions: removeTransactions(savedRef.current.transactions, new Set([transactionId])), updatedAt: new Date().toISOString() });
+    setStoreMessage("Adjustment removed.");
+  }
+  async function dismissSuggestion(id: string) {
+    await persist({ ...savedRef.current, dismissed: [...new Set([...savedRef.current.dismissed, id])] });
+  }
+
   const range = dateRange(saved.transactions);
   const fromZerodha = saved.transactions.filter((transaction) => transaction.source.fileName === KITE_TRADES_SOURCE).length;
 
@@ -199,6 +253,7 @@ export default function HomeApp() {
     let bookedTotal = 0;
     let bookedStocks = 0;
     let bookedSkipped = 0;
+    let closedBooked = 0;
     const list = (ledger?.instruments ?? []).map((instrument) => {
       // Lifecycle figures are only trustworthy when this stock's history is complete.
       const complete =
@@ -210,6 +265,7 @@ export default function HomeApp() {
         if (instrument.netSaleProceeds > 0) {
           bookedTotal += instrument.realizedPnl;
           bookedStocks += 1;
+          if (instrument.openQuantity <= 1e-9) closedBooked += instrument.realizedPnl;
         }
       } else if (instrument.netSaleProceeds > 0 || missing.has(instrument.instrumentId)) {
         bookedSkipped += 1;
@@ -224,17 +280,12 @@ export default function HomeApp() {
                 realizedPnl: instrument.realizedPnl,
                 realizedGains: instrument.realizedGains,
                 realizedLosses: instrument.realizedLosses,
-                netInvested:
-                  instrument.buyOutflows +
-                  instrument.knownOpeningBasis +
-                  instrument.standaloneFees -
-                  instrument.netSaleProceeds -
-                  instrument.dividends,
+                netInvested: netInvestedFor(instrument),
               }
             : null,
       };
     });
-    return { positions: list, booked: { total: bookedTotal, stocks: bookedStocks, skipped: bookedSkipped } };
+    return { positions: list, booked: { total: bookedTotal, stocks: bookedStocks, skipped: bookedSkipped, closedTotal: closedBooked } };
   }, [ledger, instrumentsMissingHistory]);
 
   function openHistory() {
@@ -253,8 +304,19 @@ export default function HomeApp() {
           onAddHistory={openHistory}
           onConnectedChange={handleConnectedChange}
           onHoldingsLoaded={handleHoldingsLoaded}
+          confirmCount={suggestions.length}
         />
       </div>
+
+      <CorporateActionsPanel
+        suggestions={suggestions}
+        adjustments={adjustments}
+        instruments={(ledger?.instruments ?? []).map((instrument) => ({ instrumentId: instrument.instrumentId, label: labelOf(instrument.instrumentId) }))}
+        labelOf={labelOf}
+        onApply={(transaction) => void applyAdjustment(transaction)}
+        onDismiss={(id) => void dismissSuggestion(id)}
+        onUndo={(id) => void undoAdjustment(id)}
+      />
 
       <section className="home-section saved-history" aria-label="Saved trade history">
         <div>

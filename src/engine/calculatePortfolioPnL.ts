@@ -1,4 +1,5 @@
 import type { InstrumentLedger, LedgerIssue, LedgerResult } from "./buildLedger";
+import { netInvestedFor } from "./buildLedger";
 import type { PositionValuation } from "./valuePosition";
 
 export interface InstrumentPnL {
@@ -142,12 +143,7 @@ export function calculatePortfolioPnL(
       ledger.cashFlows.unallocatedStandaloneFees === 0 &&
       ledger.cashFlows.unallocatedDividends === 0;
 
-    const lifecycleNetInvested =
-      instrument.buyOutflows +
-      instrument.knownOpeningBasis +
-      instrument.standaloneFees -
-      instrument.netSaleProceeds -
-      instrument.dividends;
+    const lifecycleNetInvested = netInvestedFor(instrument);
 
     const lifecycleRecoveryPrice =
       canCalculateLifecycleRecovery && Number.isFinite(lifecycleNetInvested)

@@ -648,3 +648,28 @@ h3 {
 .pnl-stats strong span { display: inline; margin: 0; font-size: inherit; color: inherit; }
 .pnl-stats strong span.is-gain { color: var(--green-dark, #1d6b4a); }
 .pnl-stats strong span.is-loss, .pnl-stats strong.is-loss { color: #b42318; }
+
+/* Five summary tiles; wrap on small screens */
+.pnl-stats.home-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.pnl-stats .th-tip { display: inline-block; }
+.pnl-stats .th-tip::after { top: calc(100% + 6px); left: 0; }
+.confirm-banner { display: block; text-decoration: none; color: #7c541b; background: #fffaf1; border: 1px solid #f0dfbd; border-radius: 10px; padding: 10px 12px; margin-top: 12px; }
+
+/* Needs your confirmation */
+.confirm-panel { padding: 18px; }
+.confirm-panel h2 { margin: 0 0 6px; font-size: 18px; }
+.confirm-list { display: grid; gap: 12px; margin-top: 12px; }
+.card-actions, .card-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 10px; }
+.card-form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.card-form input, .card-form select, .mini-table select { padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; background: #fff; }
+.mini-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+.mini-table th, .mini-table td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); }
+.mini-table th { color: var(--muted); font-weight: 600; }
+.adjustments { margin-top: 14px; font-size: 13px; }
+.adjustments ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; }
+.adjustments li span { margin-right: 8px; }
+@media (max-width: 600px) { .mini-table { display: block; overflow-x: auto; } }
+/* Tooltips take no space until shown (avoids sideways page scrolling) */
+.th-tip::after, .overall-chart li::after { display: none; }
+.th-tip:hover::after, .th-tip:focus::after, .overall-chart li:hover::after, .overall-chart li:focus::after { display: block; opacity: 1; }
+.pnl-stats div:last-child .th-tip::after, .pnl-stats div:nth-last-child(2) .th-tip::after { left: auto; right: 0; }
