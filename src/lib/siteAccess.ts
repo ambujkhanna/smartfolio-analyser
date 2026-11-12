@@ -17,7 +17,7 @@ const encoder = new TextEncoder();
  * surrounding quotes; ignore those so the typed code still matches.
  */
 export function normalizeCode(code: string): string {
-  return code.normalize("NFC").trim().replace(/^(["'])(.*)\1$/s, "$2").trim();
+  return code.normalize("NFC").trim().replace(/^(["'])([^]*)\1$/, "$2").trim();
 }
 
 export async function accessToken(code: string): Promise<string> {
