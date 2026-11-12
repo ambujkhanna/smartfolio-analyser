@@ -23,12 +23,13 @@ No secret values belong in this file or anywhere in Git. This section lists *whe
 | Vercel project | https://vercel.com/ambujkhannas-projects/smartfolio-analyser |
 | Vercel environment variables | https://vercel.com/ambujkhannas-projects/smartfolio-analyser/settings/environment-variables |
 | **Preview (testing) — stable branch alias** for `feat/reliable-pnl-foundation` | https://smartfolio-analyser-git-feat-relia-b98862-ambujkhannas-projects.vercel.app (behind Vercel login) |
+| **Preview — Claude work branch** `claude/phase0-stabilise` (new home screen, .xlsx import, splits/bonus) | https://smartfolio-analyser-git-claude-pha-f1aef4-ambujkhannas-projects.vercel.app (behind Vercel login; Zerodha login does not work here, see below) |
 | Production alias | https://smartfolio-analyser.vercel.app — ⚠️ publicly reachable and still serves an **early feature-branch build**; not the current app. `main` maps to Production but holds no app code yet |
 | GitHub Actions (lint, tests, build) | https://github.com/ambujkhanna/smartfolio-analyser/actions |
 | Kite Connect developer console (Zerodha app, redirect URL) | https://developers.kite.trade/ |
 | Upstox developer apps (Analytics Token) | https://account.upstox.com/developer/apps |
 
-Other branches (for example `claude/*` work branches) get their own Vercel preview alias of the form `smartfolio-analyser-git-<branch>-ambujkhannas-projects.vercel.app`. Zerodha login only works on the `feat/reliable-pnl-foundation` alias, because that is the registered redirect URL.
+Every branch gets its own Vercel preview alias (Vercel shortens and hashes long branch names, so copy it from the commit's Vercel check rather than guessing). Check which commit a preview is serving with `/api/version` or the build label in the page footer. Zerodha login only works on the `feat/reliable-pnl-foundation` alias, because that is the registered redirect URL.
 
 ### Which build am I looking at?
 
@@ -86,7 +87,7 @@ These metrics are not interchangeable. The selected cost method and all limitati
 The current branch contains these modules:
 
 - **Next.js app shell:** Landing page and application status notice.
-- **File preview (current):** Client-side CSV parsing with row preservation, accepted/rejected counts, source row details, and validation issues. The current UI accepts CSV only, with a 5 MB limit; the selected file is parsed in the browser and is not uploaded to a server by this step. Multi-format ingestion for TXT, XLS/XLSX, and text-based PDF is planned but is not implemented yet.
+- **File preview (current):** Client-side CSV parsing with row preservation, accepted/rejected counts, source row details, and validation issues. The UI accepts .csv and .xlsx (Zerodha tradebook), with a 5 MB limit; the file is parsed in the browser and is not uploaded. Legacy .xls and PDF are not supported yet and show a clear message.
 - **P&L calculation preview:** Calculate accepted transaction rows locally and display realized P&L, open quantity, remaining cost basis, position break-even, and lifecycle recovery. Missing live quotes leave market value, unrealized P&L, and dependent economic P&L unavailable.
 - **Canonical transaction validation:** Buy, sell, opening balance, fee, and dividend types, with field-level validation and source filename/row metadata.
 - **Quote validation:** Explicit available, unavailable, invalid, mismatched, and stale states; validates positive finite price, currency, instrument identity, source, and timestamps.
@@ -97,7 +98,7 @@ The current branch contains these modules:
 - **Market-data adapters:** Upstox Market Quote V3 adapter and AMFI NAV parsing/resolution code with fixed-response test fixtures.
 - **Quality tooling:** ESLint, Vitest, and a GitHub Actions lint/test/build workflow.
 
-**Important gaps:** The calculation preview is not a complete portfolio dashboard. The read-only Zerodha connector provides login/callback routes and endpoints for holdings, positions, orders, and trades; the user verified all four responses in the Preview app. A holdings reconciliation panel compares imported-ledger open quantities against the current broker snapshot by exact ISIN without importing the snapshot as transactions. Orders/trades are current-day endpoints, not full historical ledgers. Live quote provider credentials and end-to-end reconciliation edge cases still require verification. XLS/XLSX and PDF import are not implemented. The AMFI parser has not yet been verified against a captured current live feed. See [progress.md](progress.md) for the latest verified status.
+**Important gaps:** The calculation preview is not a complete portfolio dashboard. The read-only Zerodha connector provides login/callback routes and endpoints for holdings, positions, orders, and trades; the user verified all four responses in the Preview app. A holdings reconciliation panel compares imported-ledger open quantities against the current broker snapshot by exact ISIN without importing the snapshot as transactions. Orders/trades are current-day endpoints, not full historical ledgers. Live quote provider credentials and end-to-end reconciliation edge cases still require verification. Legacy .xls and PDF import are not implemented. The AMFI parser has not yet been verified against a captured current live feed. See [progress.md](progress.md) for the latest verified status.
 
 ## Accounting rules
 
