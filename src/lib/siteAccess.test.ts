@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accessToken, hasSiteAccess, readCookie, safeNextPath } from "./siteAccess";
+import { normalizeCode, accessToken, hasSiteAccess, readCookie, safeNextPath } from "./siteAccess";
 
 describe("siteAccess", () => {
   it("derives a stable token that does not contain the code", async () => {
@@ -26,5 +26,13 @@ describe("siteAccess", () => {
     expect(safeNextPath("//evil.example")).toBe("/");
     expect(safeNextPath("https://evil.example")).toBe("/");
     expect(safeNextPath(null)).toBe("/");
+  });
+
+  it("ignores pasted whitespace, newlines and surrounding quotes", async () => {
+    const token = await accessToken("mango-river-quiet-lamp-42");
+    expect(await hasSiteAccess(token, "mango-river-quiet-lamp-42\r\n")).toBe(true);
+    expect(await hasSiteAccess(token, "  \"mango-river-quiet-lamp-42\" ")).toBe(true);
+    expect(await hasSiteAccess(token, "Mango-river-quiet-lamp-42")).toBe(false);
+    expect(normalizeCode("  ")).toBe("");
   });
 });

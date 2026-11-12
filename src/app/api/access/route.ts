@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ACCESS_COOKIE, ACCESS_COOKIE_MAX_AGE, accessToken, safeEqual, safeNextPath } from "../../../lib/siteAccess";
+import { ACCESS_COOKIE, ACCESS_COOKIE_MAX_AGE, accessToken, normalizeCode, safeEqual, safeNextPath } from "../../../lib/siteAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const entered = String(form?.get("code") ?? "");
   const expected = await accessToken(code);
   const given = await accessToken(entered);
-  if (!entered || !safeEqual(given, expected)) {
+  if (!normalizeCode(entered) || !safeEqual(given, expected)) {
     // Slow down guessing a little; choose a long passphrase for real protection.
     await new Promise((resolve) => setTimeout(resolve, 800));
     const retry = new URL("/access", request.url);

@@ -12,8 +12,16 @@ export const ACCESS_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 const encoder = new TextEncoder();
 
+/**
+ * Values pasted into Vercel often carry an invisible trailing newline/space or
+ * surrounding quotes; ignore those so the typed code still matches.
+ */
+export function normalizeCode(code: string): string {
+  return code.normalize("NFC").trim().replace(/^(["'])(.*)\1$/s, "$2").trim();
+}
+
 export async function accessToken(code: string): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", encoder.encode(code), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const key = await crypto.subtle.importKey("raw", encoder.encode(normalizeCode(code) || "\u0000"),{ name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const signature = await crypto.subtle.sign("HMAC", key, encoder.encode("smartfolio-site-access-v1"));
   return [...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }

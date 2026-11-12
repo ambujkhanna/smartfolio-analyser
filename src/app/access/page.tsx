@@ -17,7 +17,7 @@ export default async function AccessPage({ searchParams }: { searchParams: Promi
         <form method="post" action="/api/access" className="access-form">
           <input type="hidden" name="next" value={next} />
           <label htmlFor="access-code">Access code</label>
-          <input id="access-code" name="code" type="password" autoComplete="current-password" required autoFocus />
+          <input id="access-code" name="code" type="password" autoComplete="off" spellCheck={false} autoCapitalize="none" required autoFocus />
           {failed ? <p className="import-error" role="alert">That code didn&rsquo;t match. Try again.</p> : null}
           <button type="submit" className="calculate-button">Continue</button>
         </form>
