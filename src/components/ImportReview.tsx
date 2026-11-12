@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import {
   type InstrumentReference,
   type InstrumentResolution,
@@ -99,9 +99,17 @@ function referenceForRow(row: CsvPreviewRow): InstrumentReference | null {
   };
 }
 
-export default function ImportReview() {
+export interface ImportReviewProps {
+  /** Called with the calculated ledger (or null when cleared) so other panels can use the history. */
+  onLedgerChange?: (ledger: LedgerResult | null) => void;
+}
+
+export default function ImportReview({ onLedgerChange }: ImportReviewProps = {}) {
   const [result, setResult] = useState<GenericCsvImportResult | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisSnapshot | null>(null);
+  useEffect(() => {
+    onLedgerChange?.(analysis?.ledger ?? null);
+  }, [analysis, onLedgerChange]);
   const [resolutionByRow, setResolutionByRow] = useState<Record<number, InstrumentResolution>>({});
   const [resolutionError, setResolutionError] = useState<string | null>(null);
   const [masterRetrievedAt, setMasterRetrievedAt] = useState<string | null>(null);
@@ -380,6 +388,19 @@ export default function ImportReview() {
     }
   }
 
+  // Calculation is local and fast, so run it automatically whenever the
+  // accepted rows change (new file or newly matched instruments).
+  useEffect(() => {
+    if (!result || result.transactions.length === 0) return;
+    const ledger = buildLedger(result.transactions);
+    setAnalysis({
+      ledger,
+      pnl: calculatePortfolioPnL(ledger, buildPositionValuations(ledger, {})),
+      importIssueCount: result.issues.length,
+      sourceRowCount: result.rowCount,
+    });
+  }, [result]);
+
   const previewRows = result?.rows.slice(0, PREVIEW_ROW_LIMIT) ?? [];
   const resolvableRowCount = result?.rows.filter((row) => {
     if (!row.transaction && !row.candidateTransaction) return false;
@@ -405,8 +426,8 @@ export default function ImportReview() {
     <section className="import-review" aria-labelledby="import-title">
       <div className="import-heading">
         <div>
-          <p className="eyebrow">Step 1 · Review your data</p>
-          <h2 id="import-title">Preview a financial data file</h2>
+          <p className="eyebrow">One-time · trade history</p>
+          <h2 id="import-title">Add your trade history</h2>
           <p className="import-description">
             The file is parsed in your browser. Invalid rows stay visible; rows with a symbol but no stable identity can be resolved against a trusted instrument master.
           </p>

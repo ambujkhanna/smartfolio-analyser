@@ -2,14 +2,17 @@
  * Compares imported-ledger open quantities with a broker holdings snapshot by ISIN.
  * The snapshot is a check only: it never creates transactions or changes P&L.
  *
- * The broker's average buy price is carried through as a clearly labelled
- * *broker cost basis*. It may be shown as a fallback where imported history is
- * incomplete, but it must never be used to derive realized P&L.
+ * Two average costs are reported side by side:
+ * - brokerAveragePrice: what the broker shows (labelled broker-reported). It may be a
+ *   fallback where history is missing, but is never used to derive realized P&L.
+ * - ledgerAveragePrice: Smartfolio's own FIFO cost of the open lots, from imported history.
  */
 
 export interface PnlPosition {
   instrumentId: string;
   openQuantity: number;
+  /** Remaining FIFO cost of the open quantity; null when any lot has unknown cost. */
+  openCostBasisTotal?: number | null;
 }
 
 export interface KiteHolding {
@@ -19,6 +22,7 @@ export interface KiteHolding {
   quantity?: unknown;
   t1_quantity?: unknown;
   average_price?: unknown;
+  last_price?: unknown;
 }
 
 export type ReconciliationStatus = "matched" | "quantity-mismatch" | "not-in-ledger";
@@ -35,6 +39,10 @@ export interface ReconciledHolding {
   brokerAveragePrice: number | null;
   /** brokerAveragePrice × brokerQuantity; labelled broker-reported, not ledger-derived. */
   brokerCostBasis: number | null;
+  /** Average cost from the imported trade history (FIFO open lots); null when unknown or not imported. */
+  ledgerAveragePrice: number | null;
+  /** Broker-reported last price, labelled as such in the UI; null when absent. */
+  brokerLastPrice: number | null;
 }
 
 export interface HoldingsReconciliation {
@@ -70,17 +78,24 @@ interface HoldingGroup {
   quantity: number;
   costTotal: number;
   costKnown: boolean;
+  lastPrice: number | null;
 }
 
-function averageOf(group: HoldingGroup): { average: number | null; cost: number | null } {
-  if (!group.costKnown || group.quantity <= 0) return { average: null, cost: null };
-  return { average: group.costTotal / group.quantity, cost: group.costTotal };
+interface LedgerGroup {
+  quantity: number;
+  cost: number;
+  costKnown: boolean;
+  positions: PnlPosition[];
+}
+
+function average(total: number, quantity: number, known: boolean): number | null {
+  return known && quantity > 0 ? total / quantity : null;
 }
 
 export function reconcileHoldings(holdings: KiteHolding[], positions: PnlPosition[]): HoldingsReconciliation {
   // Aggregate ledger positions by ISIN because the same security can appear under
   // multiple exchange-qualified instrument IDs while Zerodha holdings are grouped by ISIN.
-  const ledgerByIsin = new Map<string, { quantity: number; positions: PnlPosition[] }>();
+  const ledgerByIsin = new Map<string, LedgerGroup>();
   const positionsWithoutIsin: PnlPosition[] = [];
   for (const position of positions.filter((item) => item.openQuantity > 0)) {
     const isin = isinFromInstrumentId(position.instrumentId);
@@ -88,8 +103,11 @@ export function reconcileHoldings(holdings: KiteHolding[], positions: PnlPositio
       positionsWithoutIsin.push(position);
       continue;
     }
-    const group = ledgerByIsin.get(isin) ?? { quantity: 0, positions: [] };
+    const group = ledgerByIsin.get(isin) ?? { quantity: 0, cost: 0, costKnown: true, positions: [] };
     group.quantity += position.openQuantity;
+    const cost = position.openCostBasisTotal;
+    if (typeof cost === "number" && Number.isFinite(cost)) group.cost += cost;
+    else group.costKnown = false;
     group.positions.push(position);
     ledgerByIsin.set(isin, group);
   }
@@ -112,6 +130,8 @@ export function reconcileHoldings(holdings: KiteHolding[], positions: PnlPositio
         status: "not-in-ledger",
         brokerAveragePrice: null,
         brokerCostBasis: null,
+        ledgerAveragePrice: null,
+        brokerLastPrice: positivePrice(holding.last_price),
       });
       continue;
     }
@@ -121,6 +141,7 @@ export function reconcileHoldings(holdings: KiteHolding[], positions: PnlPositio
       quantity: 0,
       costTotal: 0,
       costKnown: true,
+      lastPrice: null,
     };
     const symbol = text(holding.tradingsymbol);
     const exchange = text(holding.exchange);
@@ -132,6 +153,7 @@ export function reconcileHoldings(holdings: KiteHolding[], positions: PnlPositio
       if (averagePrice === null) group.costKnown = false;
       else group.costTotal += averagePrice * totalQuantity;
     }
+    group.lastPrice ??= positivePrice(holding.last_price);
     group.quantity += totalQuantity;
     holdingsByIsin.set(isin, group);
   }
@@ -140,17 +162,18 @@ export function reconcileHoldings(holdings: KiteHolding[], positions: PnlPositio
   const matchedIsins = new Set<string>();
   for (const [isin, holding] of holdingsByIsin) {
     const ledger = ledgerByIsin.get(isin);
-    const { average, cost } = averageOf(holding);
+    const brokerAveragePrice = average(holding.costTotal, holding.quantity, holding.costKnown);
     const base = {
       isin,
       symbols: [...holding.symbols],
       exchanges: [...holding.exchanges],
       brokerQuantity: holding.quantity,
-      brokerAveragePrice: average,
-      brokerCostBasis: cost,
+      brokerAveragePrice,
+      brokerCostBasis: brokerAveragePrice === null ? null : holding.costTotal,
+      brokerLastPrice: holding.lastPrice,
     };
     if (!ledger) {
-      rows.push({ ...base, ledgerQuantity: null, difference: null, status: "not-in-ledger" });
+      rows.push({ ...base, ledgerQuantity: null, difference: null, status: "not-in-ledger", ledgerAveragePrice: null });
       continue;
     }
     const difference = holding.quantity - ledger.quantity;
@@ -160,6 +183,7 @@ export function reconcileHoldings(holdings: KiteHolding[], positions: PnlPositio
       ledgerQuantity: ledger.quantity,
       difference,
       status: Math.abs(difference) < 0.000001 ? "matched" : "quantity-mismatch",
+      ledgerAveragePrice: average(ledger.cost, ledger.quantity, ledger.costKnown),
     });
   }
 

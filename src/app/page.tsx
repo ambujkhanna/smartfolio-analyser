@@ -1,6 +1,5 @@
 import Link from "next/link";
-import ImportReview from "../components/ImportReview";
-import ZerodhaPanel from "../components/ZerodhaPanel";
+import HomeApp from "../components/HomeApp";
 import { getBuildInfo } from "../lib/buildInfo";
 
 export default function HomePage() {
@@ -14,69 +13,46 @@ export default function HomePage() {
         </Link>
         <span className="status-pill">
           <span className="status-dot" aria-hidden="true" />
-          Foundation in progress
+          Personal preview
         </span>
       </header>
 
-      <section className="hero" aria-labelledby="page-title">
-        <p className="eyebrow">Portfolio clarity starts with trustworthy data</p>
+      <section className="hero hero-compact" aria-labelledby="page-title">
         <h1 id="page-title">
-          Understand your portfolio.
-          <span> Know what the numbers mean.</span>
+          Your real cost and profit,
+          <span> across every buy, sell and re-buy.</span>
         </h1>
         <p className="hero-copy">
-          Smartfolio Analyser is being built to explain realized and unrealized
-          profit and loss across your complete investment history, including
-          partial sales and later re-entry into the same stock.
+          Connect your broker to see your holdings, then add your trade history once to see your true average cost.
+          Smartfolio never invents prices: anything it can&rsquo;t verify is shown as unavailable.
         </p>
-        <div className="notice" role="status">
-          <span className="notice-icon" aria-hidden="true">i</span>
-          <div>
-            <strong>Portfolio calculation preview is available</strong>
-            <p>
-              You can preview CSV or delimited TXT files, review validation issues, and calculate P&amp;L from accepted rows. Live market values require verified quotes; spreadsheet and PDF imports are not enabled yet. No sample prices or placeholder P&amp;L are displayed.
-            </p>
-          </div>
-        </div>
       </section>
 
-      <section className="principles" aria-labelledby="zerodha-title">
-        <div className="section-heading">
-          <p className="eyebrow">Broker connection · read-only</p>
-          <h2 id="zerodha-title">Connect your Zerodha account</h2>
-          <p>Authorize through Zerodha to retrieve available holdings, positions, orders, and trade records. Smartfolio will not place trades.</p>
-          <p><Link className="brand" href="/api/zerodha/login">Connect Zerodha securely →</Link></p>
-          <p className="hero-copy">Requires server-side Kite Connect credentials and a registered callback URL. The free Personal plan does not include the paid live market-data APIs.</p>
-        </div>
-      </section>
+      <HomeApp />
 
-      <ZerodhaPanel />
-
-      <ImportReview />
-
-      <section className="principles" aria-labelledby="principles-title">
-        <div className="section-heading">
-          <p className="eyebrow">Built around financial correctness</p>
-          <h2 id="principles-title">Clarity over guesswork</h2>
-        </div>
+      <details className="home-section">
+        <summary>
+          <strong>How Smartfolio calculates</strong>
+          <span>No invented prices · full lifecycle view · traceable results</span>
+        </summary>
         <div className="principle-grid">
           <article className="principle-card">
             <span className="card-index">01</span>
             <h3>No invented prices</h3>
-            <p>Missing or invalid market data must stay unavailable, never become a guessed number.</p>
+            <p>Missing or invalid market data stays unavailable; it never becomes a guessed number.</p>
           </article>
           <article className="principle-card">
             <span className="card-index">02</span>
             <h3>Full lifecycle view</h3>
-            <p>Earlier realized gains and losses matter even when a position is later reopened.</p>
+            <p>Earlier realized gains and losses still count when a position is later reopened.</p>
           </article>
           <article className="principle-card">
             <span className="card-index">03</span>
             <h3>Traceable results</h3>
-            <p>Calculations will disclose their method, data source, and any known limitations.</p>
+            <p>Every figure says where it came from: Zerodha, your trade history, or a verified quote.</p>
           </article>
         </div>
-      </section>
+      </details>
 
       <footer className="site-footer">
         <span>Smartfolio Analyser</span>

@@ -51,11 +51,11 @@ export default function ZerodhaPanel() {
   }
 
   return (
-    <section className="principles" aria-labelledby="zerodha-data-title">
+    <section className="advanced-panel" aria-labelledby="zerodha-data-title">
       <div className="section-heading">
-        <p className="eyebrow">Read-only broker data</p>
-        <h2 id="zerodha-data-title">Fetch Zerodha account data</h2>
-        <p>Connect first, then request the available data. Orders and trades are current-day endpoints, not a complete historical ledger.</p>
+        
+        <h3 id="zerodha-data-title">Raw Zerodha data</h3>
+        <p>For troubleshooting: shows exactly what Zerodha returns. Orders and trades cover today only.</p>
       </div>
       <div className="principle-grid">
         {options.map((option) => (

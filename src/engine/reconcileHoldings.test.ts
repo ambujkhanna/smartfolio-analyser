@@ -57,6 +57,30 @@ describe("reconcileHoldings", () => {
     expect(result.rows[0].brokerCostBasis).toBeNull();
   });
 
+  it("reports the app's own average cost next to the broker's and the broker last price", () => {
+    const result = reconcileHoldings(
+      [{ isin: RELIANCE, quantity: 10, average_price: 2500, last_price: 2600 }],
+      [
+        { instrumentId: `NSE:${RELIANCE}`, openQuantity: 6, openCostBasisTotal: 14400 },
+        { instrumentId: `BSE:${RELIANCE}`, openQuantity: 4, openCostBasisTotal: 10000 },
+      ],
+    );
+    expect(result.rows[0].ledgerAveragePrice).toBe(2440);
+    expect(result.rows[0].brokerAveragePrice).toBe(2500);
+    expect(result.rows[0].brokerLastPrice).toBe(2600);
+  });
+
+  it("keeps the app's average cost unknown when any open lot has unknown cost", () => {
+    const result = reconcileHoldings(
+      [{ isin: RELIANCE, quantity: 10, average_price: 2500 }],
+      [
+        { instrumentId: `NSE:${RELIANCE}`, openQuantity: 6, openCostBasisTotal: 14400 },
+        { instrumentId: `BSE:${RELIANCE}`, openQuantity: 4, openCostBasisTotal: null },
+      ],
+    );
+    expect(result.rows[0].ledgerAveragePrice).toBeNull();
+  });
+
   it("lists open ledger positions that the broker does not hold", () => {
     const result = reconcileHoldings([], [
       { instrumentId: `NSE:${TCS}`, openQuantity: 3 },
