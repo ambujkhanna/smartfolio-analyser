@@ -26,7 +26,7 @@ export function importProgress(input: ImportProgressInput): ProgressStep[] {
     {
       key: "file",
       label: "Choose your tradebook",
-      hint: "Pick your Zerodha tradebook CSV (or another CSV/TXT). It is read in your browser.",
+      hint: "Pick your Zerodha tradebook (.xlsx or .csv, from Console → Reports → Tradebook). It is read in your browser.",
       done: input.hasFile && input.acceptedCount > 0,
     },
     {
