@@ -74,6 +74,17 @@ orders and trades in Preview; recurring problem of the branch alias serving a st
 28. **Owner reported** the Vedanta card could not pick VOGL (received in the demerger, then topped up with buys) and some
     stocks showed only an ISIN. Fixed: dropdown lists all stocks (likely matches first); Vedanta list uses the listed
     symbols VOGL / VEDPOWER / VAML / VISL; names for ISIN-only stocks are looked up (ISIN only sent) and remembered.
+29. **Owner asked** that the app pick matches itself and only ask for confirmation → matches by ISIN, symbol, or
+    share count; when all are matched the card shows a summary with "Confirm and apply" ("Change matches" optional).
+    Found and fixed: cards kept choices made before Zerodha holdings loaded (why VAML seemed missing).
+30. **Owner asked** whether confirmations must be redone after refresh/new tab → no, saved in the browser; other
+    browsers/devices need backup → restore. **Owner asked** for a reminder to download a backup → banner when changes
+    aren't in a backup + the browser's standard "Leave site?" warning while that is true.
+31. **Owner reported** a CGPOWER "1:2 bonus" suggestion that didn't match reality (window inside one day). It was a
+    false positive. Detection now requires: window between trading days, no intraday buy+sell that day, and the
+    price drop a split/bonus causes (prices before vs after ≈ ratio). Otherwise a neutral "quantities don't add up"
+    note with no Apply button. Owner advised to click "Not this" on the old CGPOWER card. Intraday (sell-then-buy
+    same day) handling in the ledger is a TODO.
 
 ## Where things stand at the end of 12 Nov (updated after item 27)
 

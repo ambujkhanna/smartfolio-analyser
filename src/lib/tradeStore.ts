@@ -13,9 +13,25 @@ export interface SavedHistory {
   dismissed: string[];
   /** Stock symbols looked up by ISIN for stocks saved without one (public instrument list). */
   names: Record<string, string>;
+  /** When a backup file was last downloaded from this browser. */
+  lastBackupAt: string | null;
 }
 
-export const EMPTY_HISTORY: SavedHistory = { transactions: [], updatedAt: null, lastZerodhaSyncAt: null, dismissed: [], names: {} };
+export const EMPTY_HISTORY: SavedHistory = {
+  transactions: [],
+  updatedAt: null,
+  lastZerodhaSyncAt: null,
+  dismissed: [],
+  names: {},
+  lastBackupAt: null,
+};
+
+/** True when there are saved changes that are not in a downloaded backup yet. */
+export function needsBackup(history: SavedHistory): boolean {
+  if (history.transactions.length === 0 && history.dismissed.length === 0) return false;
+  if (!history.lastBackupAt) return true;
+  return Boolean(history.updatedAt && history.updatedAt > history.lastBackupAt);
+}
 
 const DB_NAME = "smartfolio";
 const DB_VERSION = 1;
@@ -65,6 +81,8 @@ export function toBackup(history: SavedHistory, now = new Date()): string {
       version: BACKUP_VERSION,
       exportedAt: now.toISOString(),
       lastZerodhaSyncAt: history.lastZerodhaSyncAt,
+      dismissed: history.dismissed,
+      names: history.names,
       transactions: history.transactions,
     },
     null,
@@ -73,7 +91,9 @@ export function toBackup(history: SavedHistory, now = new Date()): string {
 }
 
 /** Parses a backup file; every trade is re-validated. Returns an error message on failure. */
-export function fromBackup(text: string): { transactions: CanonicalTransaction[]; lastZerodhaSyncAt: string | null } | string {
+export function fromBackup(
+  text: string,
+): { transactions: CanonicalTransaction[]; lastZerodhaSyncAt: string | null; dismissed: string[]; names: Record<string, string> } | string {
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -97,6 +117,11 @@ export function fromBackup(text: string): { transactions: CanonicalTransaction[]
   return {
     transactions,
     lastZerodhaSyncAt: typeof record.lastZerodhaSyncAt === "string" ? record.lastZerodhaSyncAt : null,
+    dismissed: Array.isArray(record.dismissed) ? record.dismissed.filter((item): item is string => typeof item === "string") : [],
+    names:
+      record.names && typeof record.names === "object"
+        ? (Object.fromEntries(Object.entries(record.names as Record<string, unknown>).filter(([, value]) => typeof value === "string")) as Record<string, string>)
+        : {},
   };
 }
 
@@ -138,6 +163,7 @@ export async function loadHistory(): Promise<SavedHistory> {
         saved.names && typeof saved.names === "object"
           ? Object.fromEntries(Object.entries(saved.names).filter(([, value]) => typeof value === "string")) as Record<string, string>
           : {},
+      lastBackupAt: typeof saved.lastBackupAt === "string" ? saved.lastBackupAt : null,
     };
   } finally {
     db.close();

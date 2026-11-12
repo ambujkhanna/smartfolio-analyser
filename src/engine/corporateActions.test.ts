@@ -32,7 +32,7 @@ describe("analyseCorporateActions", () => {
 
   it("finds a 1→5 split from Zerodha's holding", () => {
     const rows = [t("buy", "INE222B01012", "XYZ", "2023-03-01", 4, 1000)];
-    const found = analyseCorporateActions(rows, [{ isin: "INE222B01012", symbol: "XYZ", quantity: 20 }]);
+    const found = analyseCorporateActions(rows, [{ isin: "INE222B01012", symbol: "XYZ", quantity: 20, lastPrice: 210 }]);
     expect(found[0]).toMatchObject({ type: "split-bonus", ratio: 5, windowTo: null });
   });
 
@@ -106,5 +106,43 @@ describe("analyseCorporateActions", () => {
     const vogl = ledger.instruments.find((item) => item.instrumentId === "INE704J01044")!;
     expect(vogl.openQuantity).toBe(80);
     expect(vogl.openCostBasisTotal).toBeCloseTo(78 * 41 + 2 * 450 * 0.2149);
+  });
+
+  it("matches a new company by share count when its symbol is unknown", () => {
+    const rows = [t("buy", "INE205A01025", "VEDL", "2026-02-01", 3, 450)];
+    const holdings = [
+      { isin: "INE205A01025", symbol: "VEDL", quantity: 3 },
+      { isin: "INE704J01044", symbol: "VOGL", quantity: 3 },
+      { isin: "INE694L01019", symbol: "VEDPOWER", quantity: 3 },
+      { isin: "INE1CLE01013", symbol: "VISL", quantity: 3 },
+      { isin: "INE888X01018", symbol: "NEWALUNAME", quantity: 3 },
+      { isin: "INE777Y01017", symbol: "OTHER", quantity: 7 },
+    ];
+    const found = analyseCorporateActions(rows, holdings);
+    const demerger = found.find((item) => item.type === "known-demerger");
+    if (demerger?.type !== "known-demerger") throw new Error("no demerger suggestion");
+    expect(demerger.children[2]).toMatchObject({ preselected: "INE888X01018", matchedBy: "quantity" });
+    expect(demerger.children[0]!.matchedBy).toBe("isin");
+  });
+
+  it("does not call a same-day / intraday oversell a bonus (CGPOWER case)", () => {
+    const rows = [
+      t("buy", "INE067A01029", "CGPOWER", "2025-04-10", 10, 600),
+      { ...t("sell", "INE067A01029", "CGPOWER", "2026-10-23", 15, 760), occurredAt: "2026-10-23T09:20:00+05:30" },
+      { ...t("buy", "INE067A01029", "CGPOWER", "2026-10-23", 5, 755), occurredAt: "2026-10-23T14:00:00+05:30" },
+      t("buy", "INE067A01029", "CGPOWER", "2026-11-02", 12, 770),
+      t("buy", "INE067A01029", "CGPOWER", "2026-11-06", 10, 765),
+    ];
+    const found = analyseCorporateActions(rows, [{ isin: "INE067A01029", symbol: "CGPOWER", quantity: 22, lastPrice: 770 }]);
+    expect(found.some((item) => item.type === "split-bonus")).toBe(false);
+    expect(found[0]).toMatchObject({ type: "unexplained", symbol: "CGPOWER" });
+  });
+
+  it("rejects a ratio the prices contradict", () => {
+    // Quantities fit a 1:1 bonus, but the price did not halve — so it is not a bonus.
+    const rows = [t("buy", "INE666F01016", "PRICEY", "2024-01-10", 10, 200), t("sell", "INE666F01016", "PRICEY", "2024-08-01", 20, 210)];
+    const found = analyseCorporateActions(rows, null);
+    expect(found.some((item) => item.type === "split-bonus")).toBe(false);
+    expect(found[0]?.type).toBe("unexplained");
   });
 });

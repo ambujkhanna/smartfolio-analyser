@@ -36,6 +36,14 @@ function describeAdjustment(transaction: CanonicalTransaction, labelOf: (id: str
   return `${name}: ${transaction.kind} on ${date}`;
 }
 
+function cardKey(suggestion: Suggestion): string {
+  if (suggestion.type === "known-demerger") {
+    return `${suggestion.id}|${suggestion.parentQuantity}|${suggestion.children.map((child) => child.preselected ?? "-").join(",")}|${suggestion.options.length}`;
+  }
+  if (suggestion.type === "missing-buys") return `${suggestion.id}|${suggestion.quantity}|${suggestion.beforeDate}`;
+  return suggestion.id;
+}
+
 export default function CorporateActionsPanel(props: CorporateActionsPanelProps) {
   const { suggestions, adjustments, labelOf, onUndo } = props;
   if (suggestions.length === 0 && adjustments.length === 0) return null;
@@ -52,7 +60,9 @@ export default function CorporateActionsPanel(props: CorporateActionsPanelProps)
       ) : null}
       <div className="confirm-list">
         {suggestions.map((suggestion) => (
-          <SuggestionCard key={suggestion.id} suggestion={suggestion} {...props} />
+          // Re-create the card when matching improves (e.g. once Zerodha holdings arrive),
+          // so its pre-selected choices and options are never stale.
+          <SuggestionCard key={cardKey(suggestion)} suggestion={suggestion} {...props} />
         ))}
       </div>
       {adjustments.length > 0 ? (
@@ -91,6 +101,21 @@ function SuggestionCard({ suggestion, instruments, labelOf, onApply, onDismiss }
       </article>
     );
   }
+  if (suggestion.type === "unexplained") {
+    return (
+      <article className="ask-card is-neutral">
+        <strong>{suggestion.symbol}: quantities don&rsquo;t add up</strong>
+        <p>{suggestion.message}</p>
+        <p className="home-note">
+          Nothing will be changed automatically. Real cost and recovery figures for this stock stay hidden until it&rsquo;s
+          explained. If you did intraday trades that day, let us know — intraday handling is planned.
+        </p>
+        <div className="card-actions">
+          <button type="button" className="link-button" onClick={() => onDismiss(suggestion.id)}>OK, hide this</button>
+        </div>
+      </article>
+    );
+  }
   if (suggestion.type === "known-demerger") return <KnownDemergerCard suggestion={suggestion} labelOf={labelOf} onApply={onApply} onDismiss={onDismiss} />;
   if (suggestion.type === "quantity-mismatch") return <MismatchCard suggestion={suggestion} onApply={onApply} onDismiss={onDismiss} />;
   return <MissingBuysCard suggestion={suggestion} instruments={instruments} onApply={onApply} onDismiss={onDismiss} />;
@@ -111,6 +136,9 @@ function KnownDemergerCard({
   const [choices, setChoices] = useState<string[]>(
     suggestion.children.map((child) => child.preselected ?? event.children[child.index]!.isin ?? `DEMERGED:${event.id}:${child.index}`),
   );
+  const allMatched = suggestion.children.every((child) => child.preselected);
+  const [editing, setEditing] = useState(!allMatched);
+  const how: Record<string, string> = { isin: "matched by ISIN", symbol: "matched by symbol", quantity: "matched by share count" };
   return (
     <article className="ask-card">
       <strong>{event.title} — on {event.exDate}</strong>
@@ -118,7 +146,20 @@ function KnownDemergerCard({
         <b>Why:</b> you held {suggestion.parentQuantity} shares of {labelOf(suggestion.parentId)} then. Your tradebook still puts
         all the original cost on it, which overstates its loss and leaves the new shares without a cost.
       </p>
-      <table className="mini-table">
+      {!editing ? (
+        <ul className="match-summary">
+          <li>
+            <b>{event.parent.name}</b> keeps {percent.format(event.parentCostFraction)} of the cost → <b>{labelOf(suggestion.parentId)}</b> ✓
+          </li>
+          {event.children.map((child, index) => (
+            <li key={child.name}>
+              <b>{child.name}</b>: {child.ratio} share per share held, {percent.format(child.costFraction)} of the cost →{" "}
+              <b>{labelOf(choices[index]!)}</b> ✓ <span className="match-how">({how[suggestion.children[index]!.matchedBy ?? ""] ?? "matched"})</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <table className="mini-table" hidden={!editing}>
         <thead>
           <tr><th>Company</th><th>Shares per share held</th><th>Share of original cost</th><th>In your data</th></tr>
         </thead>
@@ -146,7 +187,12 @@ function KnownDemergerCard({
       </table>
       <p className="home-note"><b>Source:</b> {event.source}</p>
       <div className="card-actions">
-        <button type="button" className="calculate-button" onClick={() => onApply(knownDemergerTransaction(event, suggestion.parentId, choices))}>Apply</button>
+        <button type="button" className="calculate-button" onClick={() => onApply(knownDemergerTransaction(event, suggestion.parentId, choices))}>
+          {editing ? "Apply" : "Confirm and apply"}
+        </button>
+        {!editing ? (
+          <button type="button" className="link-button" onClick={() => setEditing(true)}>Change matches</button>
+        ) : null}
         <button type="button" className="link-button" onClick={() => onDismiss(suggestion.id)}>Not relevant</button>
       </div>
     </article>

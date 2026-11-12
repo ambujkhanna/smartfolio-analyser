@@ -36,6 +36,9 @@
 - [x] Demerger accounting in the engine; trades now remember their stock symbol.
 - [x] Demerger matching lists every stock (new companies topped up with buys included); Vedanta children
       mapped to VOGL / VEDPOWER / VAML / VISL; missing stock names looked up by ISIN and saved in the browser.
+- [x] Auto-matching by ISIN / symbol / share count with a confirm-only summary; cards refresh when holdings load.
+- [x] Stricter split/bonus detection (DECISIONS P12); neutral note for unexplained quantities.
+- [x] Backup reminder banner + leave-page warning; backups now also carry dismissed items and looked-up names.
 - [x] Build label (commit + environment) in the footer and `/api/version`.
 
 ### Hosting and security
@@ -68,6 +71,8 @@
       Zerodha's P&L statement (charges summary) — see OPEN_QUESTIONS.
 - [ ] Add more verified demergers to the list as they come up (owner to name the ones they remember).
 - [ ] Mergers / amalgamations and symbol changes (not handled yet).
+- [ ] **Intraday trades** (sell before buy on the same day, MIS/BTST): match same-day buys and sells with each
+      other first, then FIFO for the net (today a same-day sell-first shows as "quantities don't add up").
 - [ ] Dividends (from broker data where available, otherwise flagged).
 - [ ] Other brokers (Groww, INDmoney, Upstox) — research whether their APIs give past trades for free.
 - [ ] Simplify the detailed "Trade history" view (still technical: resolve/calculate/reconcile/quotes panels).

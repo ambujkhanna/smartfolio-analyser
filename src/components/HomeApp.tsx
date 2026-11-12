@@ -12,6 +12,7 @@ import {
   fromBackup,
   loadHistory,
   mergeTransactions,
+  needsBackup,
   removeTransactions,
   saveHistory,
   toBackup,
@@ -74,6 +75,7 @@ export default function HomeApp() {
       ...extra,
       dismissed: savedRef.current.dismissed,
       names: savedRef.current.names,
+      lastBackupAt: savedRef.current.lastBackupAt,
       transactions: merged,
       updatedAt: added > 0 ? new Date().toISOString() : savedRef.current.updatedAt,
     };
@@ -121,6 +123,7 @@ export default function HomeApp() {
                 isin: holding.isin.toUpperCase(),
                 symbol: typeof holding.tradingsymbol === "string" ? holding.tradingsymbol : undefined,
                 quantity: (typeof holding.quantity === "number" ? holding.quantity : 0) + (typeof holding.t1_quantity === "number" ? holding.t1_quantity : 0),
+                ...(typeof holding.last_price === "number" && holding.last_price > 0 ? { lastPrice: holding.last_price } : {}),
               }]
             : [],
         ),
@@ -181,6 +184,8 @@ export default function HomeApp() {
     link.download = `smartfolio-backup-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
+    await persist({ ...savedRef.current, lastBackupAt: new Date().toISOString() });
+    setStoreMessage("Backup downloaded. Keep the file somewhere safe (e.g. a cloud drive).");
   }
 
   async function restoreBackup(event: ChangeEvent<HTMLInputElement>) {
@@ -194,6 +199,11 @@ export default function HomeApp() {
     }
     const added = await addTrades(parsed.transactions, {
       lastZerodhaSyncAt: savedRef.current.lastZerodhaSyncAt ?? parsed.lastZerodhaSyncAt,
+    });
+    await persist({
+      ...savedRef.current,
+      dismissed: [...new Set([...savedRef.current.dismissed, ...parsed.dismissed])],
+      names: { ...parsed.names, ...savedRef.current.names },
     });
     setStoreMessage(`Restored backup: ${added} trade${added === 1 ? "" : "s"} added (${parsed.transactions.length - added} already saved).`);
   }
@@ -232,7 +242,29 @@ export default function HomeApp() {
     for (const holding of holdingQuantities ?? []) if (holding.symbol) map.set(holding.isin, holding.symbol);
     return map;
   }, [saved.transactions, holdingQuantities, namesMap]);
-  const labelOf = useCallback((id: string) => symbolOf.get(id) ?? id, [symbolOf]);
+  const labelOf = useCallback(
+    (id: string) => {
+      const known = symbolOf.get(id);
+      if (known) return known;
+      // No public name: rights entitlements / partly-paid shares (…20… ISINs), funds (INF…), others.
+      if (/^INE[A-Z0-9]{9}$/.test(id) && id.slice(7, 9) === "20") return `Rights/partly-paid · ${id}`;
+      if (id.startsWith("INF")) return `Fund/ETF · ${id}`;
+      if (/^IN[A-Z0-9]{9}[0-9]$/.test(id)) return `Unnamed stock · ${id}`;
+      return id;
+    },
+    [symbolOf],
+  );
+  const unbacked = storeStatus === "ready" && needsBackup(saved);
+  useEffect(() => {
+    if (!unbacked) return;
+    // Browsers show their own standard "Leave site?" text; custom messages aren't allowed.
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unbacked]);
 
   // Stocks saved without a symbol and not in current holdings: look up the symbol by ISIN
   // (only the ISIN is sent) and remember it, so nothing is shown as a bare INE… code.
@@ -279,7 +311,7 @@ export default function HomeApp() {
     setStoreMessage("Adjustment removed.");
   }
   async function dismissSuggestion(id: string) {
-    await persist({ ...savedRef.current, dismissed: [...new Set([...savedRef.current.dismissed, id])] });
+    await persist({ ...savedRef.current, dismissed: [...new Set([...savedRef.current.dismissed, id])], updatedAt: new Date().toISOString() });
   }
 
   const range = dateRange(saved.transactions);
@@ -336,6 +368,17 @@ export default function HomeApp() {
 
   return (
     <>
+      {unbacked ? (
+        <div className="backup-banner" role="status">
+          <span>
+            <b>New changes aren&rsquo;t in a backup yet.</b> They are saved in this browser, but clearing browser data or
+            switching computer would lose them.
+          </span>
+          <button type="button" className="secondary-action-button" onClick={() => void downloadBackup()}>
+            Download backup
+          </button>
+        </div>
+      ) : null}
       <div ref={portfolioRef}>
         <PortfolioHome
           positions={positions}

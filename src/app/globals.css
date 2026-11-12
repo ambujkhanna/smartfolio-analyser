@@ -673,3 +673,11 @@ h3 {
 .th-tip::after, .overall-chart li::after { display: none; }
 .th-tip:hover::after, .th-tip:focus::after, .overall-chart li:hover::after, .overall-chart li:focus::after { display: block; opacity: 1; }
 .pnl-stats div:last-child .th-tip::after, .pnl-stats div:nth-last-child(2) .th-tip::after { left: auto; right: 0; }
+
+.match-summary { margin: 8px 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+.match-how { color: var(--muted); font-size: 12px; }
+
+/* Backup reminder */
+.backup-banner { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin: 8px 0; padding: 10px 14px; border: 1px solid #f0dfbd; border-radius: 10px; background: #fffaf1; color: #765d38; font-size: 13px; }
+
+.ask-card.is-neutral { background: #f6f7f8; border-color: var(--line); }

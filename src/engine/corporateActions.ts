@@ -68,6 +68,8 @@ export interface HoldingQuantity {
   isin: string;
   symbol?: string;
   quantity: number;
+  /** Zerodha's last price, used to check that a suspected split/bonus shows in the price. */
+  lastPrice?: number;
 }
 
 export type Suggestion =
@@ -89,9 +91,18 @@ export type Suggestion =
       event: KnownDemerger;
       parentId: string;
       parentQuantity: number;
-      /** For each child: the owner's instrument pre-selected (or null) and choices. */
-      children: Array<{ index: number; preselected: string | null }>;
+      /** For each child: the owner's instrument pre-selected (or null), how it was matched, and choices. */
+      children: Array<{ index: number; preselected: string | null; matchedBy: "isin" | "symbol" | "quantity" | null }>;
       options: Array<{ instrumentId: string; label: string }>;
+    }
+  | {
+      /** Quantities don't add up, but the evidence does NOT point to a split/bonus. No Apply button. */
+      type: "unexplained";
+      id: string;
+      instrumentId: string;
+      symbol: string;
+      date: string | null;
+      message: string;
     }
   | {
       type: "quantity-mismatch";
@@ -164,6 +175,38 @@ function simulate(rows: CanonicalTransaction[], ratio = 1, at = -1): Simulation 
   return { ok: true, finalQuantity: held, firstOversell: null, heldAtOversell: held };
 }
 
+/**
+ * Shares of a stock that are not explained by its own buys: sales bigger than what was
+ * held, plus any extra shares Zerodha shows. New shares from a demerger look exactly like this.
+ */
+function unexplainedShares(rows: CanonicalTransaction[], zerodha: number | undefined): number {
+  let needed = 0;
+  let held = 0;
+  for (const row of rows) {
+    const quantity = row.quantity ?? 0;
+    if (row.kind === "buy" || row.kind === "opening-balance") held += quantity;
+    else if (row.kind === "sell") {
+      if (quantity > held + EPS) {
+        needed += quantity - held;
+        held = 0;
+      } else held -= quantity;
+    } else if ((row.kind === "split" || row.kind === "bonus") && row.ratio) held *= row.ratio;
+  }
+  if (zerodha !== undefined && zerodha > held + EPS) needed += zerodha - held;
+  return needed;
+}
+
+function priceOf(row: CanonicalTransaction | undefined): number | null {
+  return row && (row.kind === "buy" || row.kind === "sell") && row.unitPrice ? row.unitPrice : null;
+}
+
+/** A real split/bonus divides the share price by about the ratio; trade prices must show that. */
+function priceSupportsRatio(before: number | null, after: number | null, ratio: number): boolean {
+  if (!before || !after) return false;
+  const observed = before / after;
+  return observed >= ratio / 1.6 && observed <= ratio * 1.6 && observed > 1.08;
+}
+
 export function analyseCorporateActions(
   transactions: CanonicalTransaction[],
   holdings: HoldingQuantity[] | null,
@@ -225,13 +268,33 @@ export function analyseCorporateActions(
       .filter((id) => id !== parentId)
       .sort((a, b) => rank(a) - rank(b) || label(a).localeCompare(label(b)))
       .map((id) => ({ instrumentId: id, label: label(id) }));
-    const children = event.children.map((child, index) => {
-      const match =
-        options.find((option) => child.isin && option.instrumentId === child.isin) ??
-        options.find((option) => child.symbols.includes(option.label.toUpperCase()));
-      if (match) claimedChildren.add(match.instrumentId);
-      return { index, preselected: match?.instrumentId ?? null };
-    });
+    const taken = new Set<string>();
+    const children: Array<{ index: number; preselected: string | null; matchedBy: "isin" | "symbol" | "quantity" | null }> =
+      event.children.map((child, index) => {
+        const byIsin = options.find((option) => child.isin && option.instrumentId === child.isin && !taken.has(option.instrumentId));
+        const bySymbol = byIsin ? undefined : options.find((option) => child.symbols.includes(option.label.toUpperCase()) && !taken.has(option.instrumentId));
+        const match = byIsin ?? bySymbol;
+        if (match) taken.add(match.instrumentId);
+        return { index, preselected: match?.instrumentId ?? null, matchedBy: byIsin ? "isin" : bySymbol ? "symbol" : null };
+      });
+    // Fallback: a stock with exactly the unexplained shares this demerger would have given,
+    // first seen on/after the ex-date, and the only such stock.
+    for (const entry of children) {
+      if (entry.preselected) continue;
+      const expected = held * event.children[entry.index]!.ratio;
+      const candidates = [...ids].filter((id) => {
+        if (id === parentId || taken.has(id)) return false;
+        const rows = rowsById.get(id) ?? [];
+        if (rows.length > 0 && day(rows[0]!.occurredAt) < event.exDate) return false;
+        return Math.abs(unexplainedShares(rows, holdings === null ? undefined : holdingQty.get(id)) - expected) < EPS;
+      });
+      if (candidates.length === 1) {
+        entry.preselected = candidates[0]!;
+        entry.matchedBy = "quantity";
+        taken.add(candidates[0]!);
+      }
+    }
+    for (const entry of children) if (entry.preselected) claimedChildren.add(entry.preselected);
     suggestions.push({ type: "known-demerger", id: suggestionId, event, parentId, parentQuantity: held, children, options });
   }
 
@@ -327,6 +390,31 @@ export function analyseCorporateActions(
       const occurredAt = at < rows.length ? shiftIso(rows[at]!.occurredAt, -1000) : shiftIso(rows[rows.length - 1]!.occurredAt, 1000);
       const suggestionId = `split:${id}:${ratio}:${day(occurredAt)}`;
       if (dismissed.has(suggestionId)) continue;
+
+      // Evidence checks — a corporate action happens between trading days and moves the price.
+      const sameDay = windowTo !== null && windowFrom === windowTo;
+      const dayRows = windowTo ? rows.filter((row) => day(row.occurredAt) === windowTo) : [];
+      const intraday = dayRows.some((row) => row.kind === "buy") && dayRows.some((row) => row.kind === "sell");
+      const before = [...rows.slice(0, at)].reverse().map(priceOf).find((price) => price !== null) ?? null;
+      const zerodhaPrice = (holdings ?? []).find((holding) => holding.isin === id)?.lastPrice ?? null;
+      const after = at < rows.length ? rows.slice(at).map(priceOf).find((price) => price !== null) ?? null : zerodhaPrice;
+      if (sameDay || intraday || !priceSupportsRatio(before, after, ratio)) {
+        const unexplainedId = `unexplained:${id}`;
+        if (!dismissed.has(unexplainedId)) {
+          suggestions.push({
+            type: "unexplained",
+            id: unexplainedId,
+            instrumentId: id,
+            symbol,
+            date: windowTo,
+            message:
+              sameDay || intraday
+                ? `On ${windowTo}, a sale was bigger than the ${symbol} shares held at that moment. This usually means intraday trades (sold before buying on the same day) or trades missing from your files — not a split or bonus.`
+                : `${symbol}: your trades and Zerodha's quantity don't add up. The share prices don't show the drop a split or bonus causes, so it's more likely trades missing from your files (upload that period's tradebook) or shares moved in or out.`,
+          });
+        }
+        continue;
+      }
       suggestions.push({
         type: "split-bonus",
         id: suggestionId,
@@ -351,6 +439,22 @@ export function analyseCorporateActions(
           source: { fileName: "Your confirmation", rowNumber: 1 },
         },
       });
+      continue;
+    }
+
+    if (!base.ok) {
+      const firstSale = rows[base.firstOversell!]!;
+      const unexplainedId = `unexplained:${id}`;
+      if (!dismissed.has(unexplainedId)) {
+        suggestions.push({
+          type: "unexplained",
+          id: unexplainedId,
+          instrumentId: id,
+          symbol,
+          date: day(firstSale.occurredAt),
+          message: `On ${day(firstSale.occurredAt)}, a ${symbol} sale was bigger than the shares held at that moment. Common causes: intraday trades (sold before buying the same day) or a missing tradebook period.`,
+        });
+      }
       continue;
     }
 
