@@ -99,6 +99,68 @@ function referenceForRow(row: CsvPreviewRow): InstrumentReference | null {
   };
 }
 
+/** Reads one tradebook file; returns the parsed result or a plain-language error. */
+async function readTradebookFile(file: File): Promise<GenericCsvImportResult | string> {
+  const extension = file.name.toLowerCase().split(".").pop() ?? "";
+  if (!["csv", "txt", "xlsx"].includes(extension)) {
+    const message = ["xls", "pdf"].includes(extension)
+      ? extension === "xls"
+        ? "Old .xls workbooks are not supported. Open the file in Excel and save it as .xlsx or CSV."
+        : "PDF files are not supported yet."
+      : "This file format is not supported.";
+    return message + " Upload a Zerodha tradebook as .xlsx or .csv.";
+  }
+  if (file.size > MAX_FILE_SIZE_BYTES) return "This file is larger than 5 MB. Split it into smaller files and try again.";
+  try {
+    if (extension === "xlsx") {
+      const table = xlsxTransactionTable(new Uint8Array(await file.arrayBuffer()));
+      if (!table) {
+        return "No transaction table was found in this workbook. Expected a header row with columns such as Symbol, ISIN, Trade Date, Trade Type, Quantity, Price and Trade ID.";
+      }
+      return parseZerodhaTradebook(table.csvText, file.name) ?? parseGenericCsv(table.csvText, file.name);
+    }
+    const text = await file.text();
+    if (!text.trim()) return "The selected file is empty.";
+    if (text.includes("\u0000")) return "This file appears to contain binary data, not delimited text.";
+    return parseZerodhaTradebook(text, file.name) ?? parseGenericCsv(text, file.name);
+  } catch (readFailure) {
+    return readFailure instanceof XlsxReadError
+      ? readFailure.message + " Re-download the file from Zerodha Console or save it as CSV."
+      : "The file could not be read. Check that it is a valid CSV, TXT or XLSX file and try again.";
+  }
+}
+
+/**
+ * Combines several tradebook files (e.g. one per year). Row numbers are renumbered so
+ * they stay unique on screen; each transaction keeps its own file name and row as its
+ * source. Trades present in more than one file share an ID and are merged by the ledger.
+ */
+export function mergeImportResults(results: GenericCsvImportResult[]): GenericCsvImportResult {
+  if (results.length === 1) return results[0]!;
+  let offset = 0;
+  const rows: CsvPreviewRow[] = [];
+  const issues: GenericCsvImportResult["issues"] = [];
+  const shift = <T extends { rowNumber?: number }>(issue: T): T =>
+    issue.rowNumber === undefined ? issue : { ...issue, rowNumber: issue.rowNumber + offset };
+  for (const item of results) {
+    const maxRow = item.rows.reduce((max, row) => Math.max(max, row.rowNumber), 0);
+    rows.push(...item.rows.map((row) => ({ ...row, rowNumber: row.rowNumber + offset, issues: row.issues.map(shift) })));
+    issues.push(...item.issues.map(shift));
+    offset += maxRow + 1;
+  }
+  return {
+    fileName: results.map((item) => item.fileName).join(", "),
+    headers: results[0]!.headers,
+    rows,
+    transactions: results.flatMap((item) => item.transactions),
+    issues,
+    rowCount: results.reduce((sum, item) => sum + item.rowCount, 0),
+    acceptedCount: results.reduce((sum, item) => sum + item.acceptedCount, 0),
+    rejectedCount: results.reduce((sum, item) => sum + item.rejectedCount, 0),
+    isComplete: results.every((item) => item.isComplete),
+  };
+}
+
 export interface ImportReviewProps {
   /** Called with the calculated ledger (or null when cleared) so other panels can use the history. */
   onLedgerChange?: (ledger: LedgerResult | null) => void;
@@ -123,7 +185,7 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
   const [isFetchingQuotes, setIsFetchingQuotes] = useState(false);
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    const files = [...(event.target.files ?? [])];
     setError(null);
     setResolutionError(null);
     setMasterRetrievedAt(null);
@@ -133,53 +195,20 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
     setQuoteRetrievedAt(null);
     setResult(null);
     setAnalysis(null);
-    if (!file) return;
-
-    const extension = file.name.toLowerCase().split(".").pop() ?? "";
-    if (!["csv", "txt", "xlsx"].includes(extension)) {
-      const message = ["xls", "pdf"].includes(extension)
-        ? extension === "xls"
-          ? "Old .xls workbooks are not supported. Open the file in Excel and save it as .xlsx or CSV."
-          : "PDF files are not supported yet."
-        : "This file format is not supported.";
-      setError(message + " Upload a Zerodha tradebook as .xlsx or .csv.");
-      event.target.value = "";
-      return;
-    }
-
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      setError("This file is larger than 5 MB. Split it into smaller files and try again.");
-      event.target.value = "";
-      return;
-    }
+    if (files.length === 0) return;
 
     setIsReading(true);
     try {
-      if (extension === "xlsx") {
-        const table = xlsxTransactionTable(new Uint8Array(await file.arrayBuffer()));
-        if (!table) {
-          setError("No transaction table was found in this workbook. Expected a header row with columns such as Symbol, ISIN, Trade Date, Trade Type, Quantity, Price and Trade ID.");
-          return;
-        }
-        setResult(parseZerodhaTradebook(table.csvText, file.name) ?? parseGenericCsv(table.csvText, file.name));
-        return;
+      const parsed: GenericCsvImportResult[] = [];
+      const problems: string[] = [];
+      for (const file of files) {
+        const outcome = await readTradebookFile(file);
+        if (typeof outcome === "string") problems.push(files.length > 1 ? file.name + ": " + outcome : outcome);
+        else parsed.push(outcome);
       }
-      const text = await file.text();
-      if (!text.trim()) {
-        setError("The selected file is empty.");
-        return;
-      }
-      if (text.includes("\u0000")) {
-        setError("This file appears to contain binary data, not delimited text. Spreadsheet and PDF parsing are not enabled yet.");
-        return;
-      }
-      setResult(parseZerodhaTradebook(text, file.name) ?? parseGenericCsv(text, file.name));
-    } catch (readFailure) {
-      setError(
-        readFailure instanceof XlsxReadError
-          ? readFailure.message + " Re-download the file from Zerodha Console or save it as CSV."
-          : "The file could not be read. Check that it is a valid CSV, TXT or XLSX file and try again.",
-      );
+      if (problems.length > 0) setError(problems.join(" "));
+      if (parsed.length > 0) setResult(mergeImportResults(parsed));
+      if (problems.length > 0 && parsed.length === 0) event.target.value = "";
     } finally {
       setIsReading(false);
     }
@@ -414,6 +443,18 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
       rawValue(row, ["symbol", "ticker", "tradingSymbol", "scrip", "security", "schemeName", "fundName"]);
     if (name && (!nameByInstrument[id] || resolution?.status === "resolved")) nameByInstrument[id] = name;
   }
+  // Group "sale exceeds open quantity" errors per stock, in plain language.
+  const missingBuysById = new Map<string, { instrumentId: string; quantity: number; sales: number }>();
+  for (const issue of analysis?.ledger.errors ?? []) {
+    if (issue.code !== "OVERSELL" || !issue.instrumentId) continue;
+    const match = issue.message.match(/Sale quantity ([\d.]+)/);
+    const entry = missingBuysById.get(issue.instrumentId) ?? { instrumentId: issue.instrumentId, quantity: 0, sales: 0 };
+    entry.quantity += match ? Number(match[1]) : 0;
+    entry.sales += 1;
+    missingBuysById.set(issue.instrumentId, entry);
+  }
+  const missingBuys = [...missingBuysById.values()];
+  const otherErrors = (analysis?.ledger.errors ?? []).filter((issue) => !(issue.code === "OVERSELL" && issue.instrumentId));
   const instrumentLabel = (id: string) => nameByInstrument[id] ?? id.replace(/^SYMBOL:/, "");
   const resolvableRowCount = result?.rows.filter((row) => {
     if (!row.transaction && !row.candidateTransaction) return false;
@@ -466,13 +507,14 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
       <label className="file-picker" htmlFor="tradebook-file">
         <span className="file-picker-icon" aria-hidden="true">↑</span>
         <span>
-          <strong>{isReading ? "Reading file…" : "Choose your tradebook (.xlsx or .csv)"}</strong>
-          <small>The file stays in your browser. Zerodha Console exports (.xlsx or .csv) and delimited TXT are supported; PDF is not. If you match instruments, only identifiers such as ISINs are sent to the server.</small>
+          <strong>{isReading ? "Reading files…" : "Choose your tradebook files (.xlsx or .csv)"}</strong>
+          <small>Select <b>all</b> your yearly tradebook files together (Ctrl-click); overlapping dates are fine, each trade is counted once. Files stay in your browser. Zerodha Console exports (.xlsx or .csv) and delimited TXT are supported; PDF is not. If you match instruments, only identifiers such as ISINs are sent to the server.</small>
         </span>
         <input
           id="tradebook-file"
           type="file"
           accept=".csv,.txt,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          multiple
           onChange={handleFileChange}
           disabled={isReading || isResolving}
         />
@@ -662,12 +704,32 @@ export default function ImportReview({ onLedgerChange }: ImportReviewProps = {})
 
               {analysis.ledger.errors.length > 0 ? (
                 <div className="analysis-issues">
-                  <strong>Errors — rows were not applied</strong>
-                  <ul>
-                    {analysis.ledger.errors.map((issue, index) => (
-                      <li key={issue.code + "-" + (issue.transactionId ?? "") + "-" + index}>{issue.message}</li>
-                    ))}
-                  </ul>
+                  {missingBuys.length > 0 ? (
+                    <>
+                      <strong>Sales without an earlier buy in your files ({missingBuys.length} stock{missingBuys.length === 1 ? "" : "s"})</strong>
+                      <p className="import-safety-note">
+                        These shares were bought before your files start, so their cost is unknown and these sales are left out of profit/loss rather than guessed.
+                        Fix: download the older tradebooks from Zerodha Console (one per year) and select them together with this one.
+                      </p>
+                      <ul>
+                        {missingBuys.map((item) => (
+                          <li key={item.instrumentId}>
+                            <b>{instrumentLabel(item.instrumentId)}</b>: sold {formatQuantity(item.quantity)} share{item.quantity === 1 ? "" : "s"} in {item.sales} sale{item.sales === 1 ? "" : "s"} with no earlier buy in your files
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : null}
+                  {otherErrors.length > 0 ? (
+                    <>
+                      <strong>Other rows that were not applied</strong>
+                      <ul>
+                        {otherErrors.map((issue, index) => (
+                          <li key={issue.code + "-" + (issue.transactionId ?? "") + "-" + index}>{issue.message}</li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
 

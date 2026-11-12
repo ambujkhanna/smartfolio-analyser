@@ -40,6 +40,8 @@ export interface PortfolioHomeProps {
   /** Profit/loss booked by sales across all stocks with complete history (including fully sold ones). */
   booked?: { total: number; stocks: number; skipped: number };
   onAddHistory: () => void;
+  /** Told whether Zerodha holdings are loaded, so the page can return here after an upload. */
+  onConnectedChange?: (connected: boolean) => void;
 }
 
 const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
@@ -67,7 +69,7 @@ function rowNote(row: ReconciledHolding, hasHistory: boolean): { text: string; t
   return { text: "No buys found in history", tone: "warn" };
 }
 
-export default function PortfolioHome({ positions, hasHistory, instrumentsMissingHistory, booked, onAddHistory }: PortfolioHomeProps) {
+export default function PortfolioHome({ positions, hasHistory, instrumentsMissingHistory, booked, onAddHistory, onConnectedChange }: PortfolioHomeProps) {
   const [state, setState] = useState<ConnectionState>({ kind: "checking" });
   const [banner, setBanner] = useState<string | null>(null);
 
@@ -95,6 +97,10 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
     if (outcome) window.history.replaceState(null, "", window.location.pathname);
     void load();
   }, [load]);
+
+  useEffect(() => {
+    onConnectedChange?.(state.kind === "connected");
+  }, [state.kind, onConnectedChange]);
 
   async function disconnect() {
     await fetch("/api/zerodha/logout", { method: "POST" }).catch(() => undefined);
@@ -259,7 +265,7 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
               <strong>One thing we need: your past trades (one-time)</strong>
               <p><b>What:</b> your Zerodha <em>Tradebook</em> for Equity, from your first trade until today.</p>
               <p><b>Why:</b> Zerodha only shares today&rsquo;s trades. Your <em>real</em> average cost and realized profit/loss across sells and re-buys can only be worked out from the full history. Until then we show Zerodha&rsquo;s average cost.</p>
-              <p><b>How:</b> open <a href="https://console.zerodha.com/reports/tradebook" target="_blank" rel="noreferrer">Zerodha Console → Reports → Tradebook</a>, choose segment <em>Equity</em> and the full date range (download one file per year if the range is limited), click <em>Download XLSX</em>, then upload it here.</p>
+              <p><b>How:</b> open <a href="https://console.zerodha.com/reports/tradebook" target="_blank" rel="noreferrer">Zerodha Console → Reports → Tradebook</a>, choose segment <em>Equity</em> and the full date range (download one file per year if the range is limited), click <em>Download XLSX</em>, then select all the files here together.</p>
               <button type="button" className="calculate-button" onClick={onAddHistory}>Upload tradebook</button>
             </div>
           ) : needsHistory.length > 0 || instrumentsMissingHistory.length > 0 ? (
@@ -267,7 +273,7 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
               <strong>Some holdings need earlier trades</strong>
               <p><b>What:</b> trades from before your uploaded tradebook starts, for {needsHistory.length || instrumentsMissingHistory.length} stock{(needsHistory.length || instrumentsMissingHistory.length) === 1 ? "" : "s"} ({needsHistory.slice(0, 5).map((row) => row.symbols[0] ?? row.isin).join(", ")}{needsHistory.length > 5 ? "…" : ""}).</p>
               <p><b>Why:</b> these shares were bought (or sold) outside the uploaded date range, so their real average cost can&rsquo;t be calculated yet.</p>
-              <p><b>How:</b> download a tradebook covering the earlier dates from Zerodha Console and upload it too. Overlapping files are fine; duplicate trades are counted once.</p>
+              <p><b>How:</b> download the tradebooks for the earlier years from Zerodha Console, then click below and select <b>all</b> your tradebook files together (Ctrl-click). Overlapping dates are fine; each trade is counted once.</p>
               <button type="button" className="secondary-action-button" onClick={onAddHistory}>Upload another tradebook</button>
             </div>
           ) : null}

@@ -14,8 +14,24 @@ export default function HomeApp() {
   const [ledger, setLedger] = useState<LedgerResult | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyRef = useRef<HTMLDetailsElement>(null);
+  const portfolioRef = useRef<HTMLDivElement>(null);
+  const connectedRef = useRef(false);
+  const hadLedgerRef = useRef(false);
 
-  const handleLedgerChange = useCallback((next: LedgerResult | null) => setLedger(next), []);
+  const handleConnectedChange = useCallback((connected: boolean) => {
+    connectedRef.current = connected;
+  }, []);
+
+  const handleLedgerChange = useCallback((next: LedgerResult | null) => {
+    setLedger(next);
+    // When a tradebook has just been added and Zerodha is connected, the useful result is the
+    // portfolio table (real cost, booked, to recover), so go back there instead of the detail view.
+    if (next && !hadLedgerRef.current && connectedRef.current) {
+      setHistoryOpen(false);
+      requestAnimationFrame(() => portfolioRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+    hadLedgerRef.current = Boolean(next);
+  }, []);
 
   const instrumentsMissingHistory = useMemo(
     () => [...new Set((ledger?.errors ?? []).filter((issue) => issue.code === "OVERSELL" && issue.instrumentId).map((issue) => issue.instrumentId as string))],
@@ -71,13 +87,16 @@ export default function HomeApp() {
 
   return (
     <>
-      <PortfolioHome
-        positions={positions}
-        hasHistory={Boolean(ledger)}
-        instrumentsMissingHistory={instrumentsMissingHistory}
-        booked={booked}
-        onAddHistory={openHistory}
-      />
+      <div ref={portfolioRef}>
+        <PortfolioHome
+          positions={positions}
+          hasHistory={Boolean(ledger)}
+          instrumentsMissingHistory={instrumentsMissingHistory}
+          booked={booked}
+          onAddHistory={openHistory}
+          onConnectedChange={handleConnectedChange}
+        />
+      </div>
 
       <details
         ref={historyRef}
@@ -87,7 +106,7 @@ export default function HomeApp() {
       >
         <summary>
           <strong>Trade history</strong>
-          <span>{ledger ? "Added — open to review or add another file" : "Upload your tradebook once to calculate your real average cost"}</span>
+          <span>{ledger ? "Added — results are in the portfolio table above. Open for calculation details or to add another file" : "Upload your tradebook once to calculate your real average cost"}</span>
         </summary>
         <ImportReview onLedgerChange={handleLedgerChange} />
       </details>

@@ -128,8 +128,14 @@ export function calculatePortfolioPnL(
         ? instrument.openCostBasisTotal / instrument.openQuantity
         : null;
 
+    // Per-stock: an error on another stock (e.g. its earlier buys are missing) must not
+    // hide this stock's recovery price; only this stock's own errors do.
+    const hasOwnErrors = ledger.errors.some((issue) => issue.instrumentId === instrument.instrumentId);
+    const hasUnattributedErrors = ledger.errors.some((issue) => !issue.instrumentId);
     const canCalculateLifecycleRecovery =
-      ledger.isComplete &&
+      !hasOwnErrors &&
+      !hasUnattributedErrors &&
+      instrument.openCostBasisTotal !== null &&
       instrument.realizedPnlComplete &&
       !instrument.hasUnknownOpeningBasis &&
       instrument.openQuantity > 0 &&

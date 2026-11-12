@@ -77,3 +77,17 @@ describe("lifecycle: buy, sell at profit, sell at loss, re-buy", () => {
     expect(life.overallPnl).toBeCloseTo(50);
   });
 });
+
+describe("one stock with missing history does not hide another stock's recovery", () => {
+  it("keeps recovery for the complete stock", async () => {
+    const { calculatePortfolioPnL } = await import("./calculatePortfolioPnL");
+    const ledger = buildLedger([
+      { ...trade("buy", 10, 100, "01-01") },
+      { ...trade("sell", 5, 50, "02-01"), instrumentId: "NSE:INE075A01022" },
+    ]);
+    expect(ledger.errors.some((issue) => issue.code === "OVERSELL")).toBe(true);
+    const pnl = calculatePortfolioPnL(ledger, {});
+    const complete = pnl.instrumentMetrics.find((item) => item.instrumentId === ID)!;
+    expect(complete.lifecycleRecoveryPrice).toBeCloseTo(100);
+  });
+});
