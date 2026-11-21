@@ -1,5 +1,6 @@
 import { validateTransaction, type CanonicalTransaction } from "../domain/transaction";
 import type { PnlStatement } from "../importers/zerodhaPnl";
+import { DEFAULT_ALERT_SETTINGS, type AlertRule, type AlertSettings, type RecoverySnapshot } from "../engine/alerts";
 
 /**
  * Saved trade history, kept only in this browser (IndexedDB). Nothing here is sent
@@ -18,6 +19,13 @@ export interface SavedHistory {
   lastBackupAt: string | null;
   /** Zerodha P&L statements used to verify figures (never turned into trades). */
   statements: PnlStatement[];
+  /** Owner's own alert rules and settings. */
+  alertRules: AlertRule[];
+  alertSettings: AlertSettings;
+  /** Alert ids already seen (to mark new ones). */
+  seenAlerts: string[];
+  /** Daily "still to recover" per stock, for progress alerts (derived; not a user change). */
+  snapshots: RecoverySnapshot[];
 }
 
 export const EMPTY_HISTORY: SavedHistory = {
@@ -28,6 +36,10 @@ export const EMPTY_HISTORY: SavedHistory = {
   names: {},
   lastBackupAt: null,
   statements: [],
+  alertRules: [],
+  alertSettings: DEFAULT_ALERT_SETTINGS,
+  seenAlerts: [],
+  snapshots: [],
 };
 
 /** True when there are saved changes that are not in a downloaded backup yet. */
@@ -88,6 +100,8 @@ export function toBackup(history: SavedHistory, now = new Date()): string {
       dismissed: history.dismissed,
       names: history.names,
       statements: history.statements,
+      alertRules: history.alertRules,
+      alertSettings: history.alertSettings,
       transactions: history.transactions,
     },
     null,
@@ -104,6 +118,8 @@ export function fromBackup(
   dismissed: string[];
   names: Record<string, string>;
   statements: PnlStatement[];
+  alertRules: AlertRule[];
+  alertSettings: AlertSettings | null;
 } | string {
   let data: unknown;
   try {
@@ -134,6 +150,9 @@ export function fromBackup(
         ? (Object.fromEntries(Object.entries(record.names as Record<string, unknown>).filter(([, value]) => typeof value === "string")) as Record<string, string>)
         : {},
     statements: Array.isArray(record.statements) ? (record.statements as PnlStatement[]).filter((item) => item && Array.isArray(item.rows)) : [],
+    alertRules: Array.isArray(record.alertRules) ? (record.alertRules as AlertRule[]) : [],
+    alertSettings:
+      record.alertSettings && typeof (record.alertSettings as AlertSettings).concentrationPercent === "number" ? (record.alertSettings as AlertSettings) : null,
   };
 }
 
@@ -177,6 +196,10 @@ export async function loadHistory(): Promise<SavedHistory> {
           : {},
       lastBackupAt: typeof saved.lastBackupAt === "string" ? saved.lastBackupAt : null,
       statements: Array.isArray(saved.statements) ? (saved.statements as PnlStatement[]).filter((item) => item && Array.isArray(item.rows)) : [],
+      alertRules: Array.isArray(saved.alertRules) ? saved.alertRules : [],
+      alertSettings: saved.alertSettings && typeof saved.alertSettings.concentrationPercent === "number" ? saved.alertSettings : DEFAULT_ALERT_SETTINGS,
+      seenAlerts: Array.isArray(saved.seenAlerts) ? saved.seenAlerts.filter((item): item is string => typeof item === "string") : [],
+      snapshots: Array.isArray(saved.snapshots) ? saved.snapshots : [],
     };
   } finally {
     db.close();

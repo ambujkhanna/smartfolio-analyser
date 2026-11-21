@@ -21,6 +21,9 @@ import {
 import ImportReview from "./ImportReview";
 import CorporateActionsPanel from "./CorporateActionsPanel";
 import VerificationPanel from "./VerificationPanel";
+import AlertsPanel from "./AlertsPanel";
+import { buildAlerts, type AlertRule, type AlertSettings } from "../engine/alerts";
+import { reconcileHoldings } from "../engine/reconcileHoldings";
 import { verifyPortfolio } from "../engine/verification";
 import { parseZerodhaPnlCsv, parseZerodhaPnlSheets, type PnlStatement } from "../importers/zerodhaPnl";
 import { readXlsx } from "../importers/xlsx";
@@ -89,6 +92,10 @@ export default function HomeApp() {
       names: savedRef.current.names,
       lastBackupAt: savedRef.current.lastBackupAt,
       statements: savedRef.current.statements,
+      alertRules: savedRef.current.alertRules,
+      alertSettings: savedRef.current.alertSettings,
+      seenAlerts: savedRef.current.seenAlerts,
+      snapshots: savedRef.current.snapshots,
       transactions: merged,
       updatedAt: added > 0 ? new Date().toISOString() : savedRef.current.updatedAt,
     };
@@ -219,6 +226,8 @@ export default function HomeApp() {
       dismissed: [...new Set([...savedRef.current.dismissed, ...parsed.dismissed])],
       names: { ...parsed.names, ...savedRef.current.names },
       statements: mergeStatements(savedRef.current.statements, parsed.statements),
+      alertRules: savedRef.current.alertRules.length > 0 ? savedRef.current.alertRules : parsed.alertRules,
+      alertSettings: parsed.alertSettings ?? savedRef.current.alertSettings,
     });
     setStoreMessage(`Restored backup: ${added} trade${added === 1 ? "" : "s"} added (${parsed.transactions.length - added} already saved).`);
   }
@@ -428,6 +437,71 @@ export default function HomeApp() {
     return { positions: list, booked: { total: bookedTotal, stocks: bookedStocks, skipped: bookedSkipped, closedTotal: closedBooked } };
   }, [ledger, instrumentsMissingHistory]);
 
+  // ---- Alerts (facts from own data and rules; never advice)
+  const todayIst = new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10);
+  const alertRows = useMemo(
+    () =>
+      holdingQuantities
+        ? reconcileHoldings(
+            holdingQuantities.map((holding) => ({
+              isin: holding.isin,
+              tradingsymbol: holding.symbol,
+              quantity: holding.quantity,
+              average_price: holding.averagePrice,
+              last_price: holding.lastPrice,
+            })),
+            positions,
+          ).rows
+        : [],
+    [holdingQuantities, positions],
+  );
+  const alerts = useMemo(
+    () =>
+      storeStatus === "ready"
+        ? buildAlerts({
+            today: todayIst,
+            rows: alertRows,
+            ledger,
+            transactions: saved.transactions,
+            rules: saved.alertRules,
+            settings: saved.alertSettings,
+            snapshots: saved.snapshots,
+            health: {
+              mismatches: verification.counts.mismatch,
+              needsAnswer: suggestions.length,
+              lastZerodhaSyncAt: saved.lastZerodhaSyncAt,
+              lastBackupAt: saved.lastBackupAt,
+              hasSavedData: saved.transactions.length > 0,
+              connected: holdingQuantities !== null,
+            },
+          })
+        : [],
+    [storeStatus, todayIst, alertRows, ledger, saved, verification.counts.mismatch, suggestions.length, holdingQuantities],
+  );
+  // One "still to recover" snapshot per day (derived data: does not count as an unsaved change).
+  useEffect(() => {
+    if (storeStatus !== "ready" || alertRows.length === 0) return;
+    if (savedRef.current.snapshots.some((snapshot) => snapshot.date === todayIst)) return;
+    const values: Record<string, number> = {};
+    for (const row of alertRows) if (row.lifecycle) values[row.isin] = Math.round(row.lifecycle.toRecover * 100) / 100;
+    if (Object.keys(values).length === 0) return;
+    const snapshots = [...savedRef.current.snapshots, { date: todayIst, values }].slice(-120);
+    void persist({ ...savedRef.current, snapshots });
+  }, [storeStatus, alertRows, todayIst, persist]);
+  async function markAlertsSeen() {
+    await persist({ ...savedRef.current, seenAlerts: [...new Set([...savedRef.current.seenAlerts, ...alerts.map((alert) => alert.id)])].slice(-2000) });
+  }
+  async function addAlertRule(rule: AlertRule) {
+    await persist({ ...savedRef.current, alertRules: [...savedRef.current.alertRules, rule], updatedAt: new Date().toISOString() });
+  }
+  async function removeAlertRule(id: string) {
+    await persist({ ...savedRef.current, alertRules: savedRef.current.alertRules.filter((rule) => rule.id !== id), updatedAt: new Date().toISOString() });
+  }
+  async function saveAlertSettings(settings: AlertSettings) {
+    await persist({ ...savedRef.current, alertSettings: settings, updatedAt: new Date().toISOString() });
+  }
+
+
   function openHistory() {
     setHistoryOpen(true);
     requestAnimationFrame(() => historyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -445,6 +519,20 @@ export default function HomeApp() {
             Download backup
           </button>
         </div>
+      ) : null}
+      {storeStatus === "ready" && (alerts.length > 0 || saved.alertRules.length > 0 || holdingQuantities) ? (
+        <AlertsPanel
+          alerts={alerts}
+          seen={new Set(saved.seenAlerts)}
+          rules={saved.alertRules}
+          settings={saved.alertSettings}
+          stocks={(holdingQuantities ?? []).map((holding) => ({ instrumentId: holding.isin, label: holding.symbol ?? labelOf(holding.isin) }))}
+          labelOf={labelOf}
+          onMarkSeen={() => void markAlertsSeen()}
+          onAddRule={(rule) => void addAlertRule(rule)}
+          onRemoveRule={(id) => void removeAlertRule(id)}
+          onSettings={(settings) => void saveAlertSettings(settings)}
+        />
       ) : null}
       <div ref={portfolioRef}>
         <PortfolioHome

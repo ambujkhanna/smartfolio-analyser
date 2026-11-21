@@ -111,6 +111,20 @@ orders and trades in Preview; recurring problem of the branch alias serving a st
     Out (new): buyback/open offer/delisting (price), sold outside the files (price), transferred out/gifted
     (new `transfer-out` entry: shares leave at cost, no P&L). Answers are saved entries ("Your confirmation") in the
     browser + backups, survive tradebook re-uploads, listed under "Your saved answers" with Undo.
+39. **Owner asked** about logging in to 2 Zerodha accounts → possible: each account needs its own free Kite Connect
+    Personal app (keys), separate daily login, account label on all data, FIFO per account, combined view.
+    Not built yet; owner to confirm whose the second account is (OPEN_QUESTIONS Q15).
+40. **Owner asked** whether this is feasible in plain Excel → yes for the core (money still in = buys − sells;
+    break-even = money still in ÷ shares; still to recover) with SUMIFS; Excel lacks detection, sync and
+    verification. Offered a ready-made template (not built; owner chose alerts next).
+41. **Owner asked** whether the app can suggest what to buy/sell → technically possible, not reliable; not a
+    licensed adviser; sharing recommendations with others needs SEBI registration. Offered fact-based alerts instead.
+42. **Owner approved alerts** → built: break-even reached / within 5%, recovery progress vs ~30 days ago (daily
+    snapshots), tax timing (shares turning long-term within 30 days while in profit; Feb–Mar loss before FY end),
+    concentration above a limit (default 20%), owner's own targets (vs real average % or price), data health
+    (mismatches, answers waiting, no sync 7 days, no backup 30 days). NEW badges, "Mark all as seen"; rules and
+    settings saved in browser + backups. Owner asked for changes in one shot with a final bundle → single deploy
+    + source zip.
 
 ## Where things stand at the end of 12 Nov (updated after item 27)
 

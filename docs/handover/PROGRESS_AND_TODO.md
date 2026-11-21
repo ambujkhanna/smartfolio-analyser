@@ -44,6 +44,8 @@
       statements (booked P&L per period, shares and cost at period end). Statements saved in browser and backups.
 - [x] "Explain the difference" breakdown form on every quantity card (in and out reasons, multi-line, balanced
       before saving); new `transfer-out` entry; answers saved permanently and listed with Undo.
+- [x] **Alerts** panel (top of page): break-even reached/near, recovery progress, tax timing, concentration,
+      own targets, data health; NEW badges; rules/settings saved in browser + backups.
 - [x] Build label (commit + environment) in the footer and `/api/version`.
 
 ### Hosting and security

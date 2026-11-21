@@ -712,3 +712,19 @@ h3 {
 .breakdown-total { font-size: 13px; font-weight: 600; }
 .breakdown-total.is-ok { color: #17603f; }
 .breakdown-total.is-warn { color: #8a5a16; }
+
+/* Alerts */
+.alerts-panel { padding: 16px 18px; }
+.alerts-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; justify-content: space-between; }
+.alerts-head h2 { margin: 0; font-size: 18px; }
+.alerts-count { font-size: 13px; font-weight: 500; color: var(--muted); }
+.alert-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.alert-item { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.alert-item p { margin: 3px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.alert-item.is-good { border-color: #cfe7d9; background: #f4fbf7; }
+.alert-item.is-warn { border-color: #f0dfbd; background: #fffaf1; }
+.alert-icon { font-weight: 700; text-align: center; }
+.alert-item.is-good .alert-icon { color: #17603f; }
+.alert-item.is-warn .alert-icon { color: #8a5a16; }
+.alert-new { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--green, #236b4c); color: #fff; font-size: 10px; font-weight: 700; vertical-align: middle; }
+.alert-settings { margin-top: 12px; font-size: 13px; }
