@@ -46,6 +46,7 @@
       before saving); new `transfer-out` entry; answers saved permanently and listed with Undo.
 - [x] **Alerts** panel (top of page): break-even reached/near, recovery progress, tax timing, concentration,
       own targets, data health; NEW badges; rules/settings saved in browser + backups.
+- [x] Summary tiles open a per-stock breakdown on click; badge tooltips no longer hidden behind rows.
 - [x] Build label (commit + environment) in the footer and `/api/version`.
 
 ### Hosting and security

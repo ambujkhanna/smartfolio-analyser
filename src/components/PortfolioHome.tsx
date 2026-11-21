@@ -40,7 +40,14 @@ export interface PortfolioHomeProps {
   /** Instrument IDs whose sales exceeded imported buys (earlier history missing). */
   instrumentsMissingHistory: string[];
   /** Profit/loss booked by sales across all stocks with complete history (including fully sold ones). */
-  booked?: { total: number; stocks: number; skipped: number; closedTotal: number };
+  booked?: {
+    total: number;
+    stocks: number;
+    skipped: number;
+    closedTotal: number;
+    /** Per stock with complete history and at least one sale (held or fully sold). */
+    items: Array<{ instrumentId: string; label: string; booked: number; gains: number; losses: number; held: boolean }>;
+  };
   /** Number of corporate-action / missing-buy items waiting for the owner's confirmation. */
   confirmCount?: number;
   /** Per-stock check against Zerodha's own figures. */
@@ -139,6 +146,55 @@ function OverallChart({ rows }: { rows: ReconciledHolding[] }) {
   );
 }
 
+type TileKey = "whole" | "net" | "current" | "booked" | "losing";
+
+interface BreakdownRow {
+  key: string;
+  label: string;
+  value: number;
+  note?: string;
+}
+
+/** Per-stock rows behind a summary tile, biggest effect first. */
+function TileBreakdown({ title, explain, rows, total, shortfall, onClose }: { title: string; explain: string; rows: BreakdownRow[]; total: number; shortfall?: boolean; onClose: () => void }) {
+  // "Still to recover" amounts are shortfalls: show them plain and red, not as gains.
+  const amount = (value: number) => (shortfall ? <span className="is-loss">{formatMoney(value)}</span> : <Signed value={value} />);
+  const max = Math.max(...rows.map((row) => Math.abs(row.value)), 1);
+  return (
+    <div className="tile-breakdown" role="region" aria-label={title}>
+      <div className="tile-breakdown-head">
+        <strong>{title}</strong>
+        <button type="button" className="link-button" onClick={onClose}>Close</button>
+      </div>
+      <p className="home-note">{explain}</p>
+      {rows.length === 0 ? (
+        <p className="home-note">No stocks contribute to this yet.</p>
+      ) : (
+        <table className="mini-table breakdown-table">
+          <thead>
+            <tr><th>Stock</th><th>Amount</th><th>Share</th><th aria-hidden="true" /></tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <td>{row.label}{row.note ? <small className="position-reason">{row.note}</small> : null}</td>
+                <td>{amount(row.value)}</td>
+                <td>{total !== 0 ? `${Math.round((row.value / total) * 1000) / 10}%` : "—"}</td>
+                <td className="breakdown-bar-cell">
+                  <span className={"breakdown-bar " + (shortfall || row.value < 0 ? "is-loss-bar" : "is-gain-bar")} style={{ width: `${(Math.abs(row.value) / max) * 100}%` }} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr><td>Total ({rows.length} stock{rows.length === 1 ? "" : "s"})</td><td>{amount(total)}</td><td /><td /></tr>
+          </tfoot>
+        </table>
+      )}
+    </div>
+  );
+}
+
 /** Signed amount with gain/loss colour; "—" when unknown. */
 function Signed({ value }: { value: number | null | undefined }) {
   if (value === null || value === undefined) return <>—</>;
@@ -161,6 +217,7 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
   const [state, setState] = useState<ConnectionState>({ kind: "checking" });
   const [banner, setBanner] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [openTile, setOpenTile] = useState<TileKey | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "checking" });
@@ -228,6 +285,66 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
     state.kind === "not-connected" && state.connectOrigin && typeof window !== "undefined" && state.connectOrigin !== window.location.origin
       ? state.connectOrigin
       : null;
+
+  function tile(key: TileKey, value: ReactNode, label: string, tip: string) {
+    const active = openTile === key;
+    return (
+      <button
+        type="button"
+        className={"stat-tile" + (active ? " is-active" : "")}
+        aria-expanded={active}
+        title={tip}
+        onClick={() => setOpenTile(active ? null : key)}
+      >
+        <strong>{value}</strong>
+        <span>{label} <span aria-hidden="true">{active ? "▴" : "▾"}</span></span>
+      </button>
+    );
+  }
+
+  function breakdownFor(key: TileKey): { title: string; explain: string; rows: BreakdownRow[]; total: number; shortfall?: boolean } {
+    const name = (row: ReconciledHolding) => row.symbols[0] ?? row.isin;
+    const held = withLifecycle;
+    const sum = (list: BreakdownRow[]) => list.reduce((total, row) => total + row.value, 0);
+    if (key === "losing") {
+      const list = held
+        .filter((row) => (row.lifecycle?.toRecover ?? 0) > 0)
+        .map((row) => ({
+          key: row.isin,
+          label: name(row),
+          value: row.lifecycle!.toRecover,
+          note: `break-even ${formatMoney(row.lifecycle!.breakEvenPrice)} vs price ${formatMoney(row.brokerLastPrice)}`,
+        }))
+        .sort((a, b) => b.value - a.value);
+      return { title: "Losing stocks still need", explain: "Each losing stock and how much it must recover to return all the money you put in it. Biggest first.", rows: list, total: sum(list), shortfall: true };
+    }
+    if (key === "current") {
+      const list = held.map((row) => ({ key: row.isin, label: name(row), value: row.lifecycle!.unrealizedPnl })).sort((a, b) => a.value - b.value);
+      return { title: "Current P&L on holdings", explain: "Gain or loss on the shares you hold now, against your real average cost. Losses first.", rows: list, total: sum(list) };
+    }
+    if (key === "net") {
+      const list = held
+        .map((row) => ({ key: row.isin, label: name(row), value: row.lifecycle!.overallPnl, note: `booked ${formatMoney(row.lifecycle!.realizedPnl)} + current ${formatMoney(row.lifecycle!.unrealizedPnl)}` }))
+        .sort((a, b) => a.value - b.value);
+      return { title: "Net on current stocks", explain: "For each stock you hold: everything booked on it plus today's gain or loss. Losses first.", rows: list, total: sum(list) };
+    }
+    if (key === "booked") {
+      const list = (booked?.items ?? [])
+        .map((item) => ({
+          key: item.instrumentId,
+          label: item.label,
+          value: item.booked,
+          note: `${item.held ? "still held" : "fully sold"} · profit ${formatMoney(item.gains)} · loss ${formatMoney(-item.losses)}`,
+        }))
+        .sort((a, b) => a.value - b.value);
+      return { title: "Booked so far", explain: "Profit or loss already locked in by selling, per stock (including stocks you no longer hold). Losses first.", rows: list, total: sum(list) };
+    }
+    // whole portfolio: fully sold stocks' booked + current stocks' overall
+    const current = held.map((row) => ({ key: row.isin, label: name(row), value: row.lifecycle!.overallPnl, note: "still held · booked + current" }));
+    const sold = (booked?.items ?? []).filter((item) => !item.held).map((item) => ({ key: item.instrumentId, label: item.label, value: item.booked, note: "fully sold · booked" }));
+    const list = [...current, ...sold].sort((a, b) => a.value - b.value);
+    return { title: "Whole portfolio, net", explain: "Every stock's contribution: fully sold stocks count their booked result; stocks you hold count booked + current. Losses first.", rows: list, total: sum(list) };
+  }
 
   return (
     <section className="home-panel" aria-labelledby="home-title">
@@ -341,37 +458,21 @@ export default function PortfolioHome({ positions, hasHistory, instrumentsMissin
                 </a>
               ) : null}
               <div className="pnl-stats home-stats">
-                <div>
-                  <strong><Signed value={(booked?.closedTotal ?? 0) + lifecycleTotals.overall} /></strong>
-                  <span className="th-tip" tabIndex={0} data-tip="Your net result: profit/loss booked on stocks you've fully sold, plus the overall result on stocks you still hold (booked + current). Gains and losses offset each other here.">
-                    Whole portfolio, net
-                  </span>
-                </div>
-                <div>
-                  <strong><Signed value={lifecycleTotals.overall} /></strong>
-                  <span className="th-tip" tabIndex={0} data-tip="For stocks you still hold: today's value minus the money still in them. Gains on one stock offset losses on another.">
-                    Net on current stocks
-                  </span>
-                </div>
-                <div>
-                  <strong><Signed value={lifecycleTotals.unrealized} /></strong>
-                  <span className="th-tip" tabIndex={0} data-tip="Gain/loss on the shares you still hold, against your real average cost (excludes profit/loss already booked).">
-                    Current P&amp;L on holdings
-                  </span>
-                </div>
-                <div>
-                  <strong><Signed value={booked?.total ?? 0} /></strong>
-                  <span className="th-tip" tabIndex={0} data-tip="Profit/loss already locked in by selling, across every stock with complete history, including stocks you no longer hold.">
-                    Booked so far ({booked?.stocks ?? 0} stock{booked?.stocks === 1 ? "" : "s"})
-                  </span>
-                </div>
-                <div>
-                  <strong className={lifecycleTotals.toRecover > 0 ? "is-loss" : ""}>{formatMoney(lifecycleTotals.toRecover)}</strong>
-                  <span className="th-tip" tabIndex={0} data-tip="Added up only over stocks that are down: how much those stocks must rise to return all the money you put in them. Gains on other stocks are NOT subtracted here — see the net figures for that.">
-                    Losing stocks still need
-                  </span>
-                </div>
+                {tile("whole", <Signed value={(booked?.closedTotal ?? 0) + lifecycleTotals.overall} />, "Whole portfolio, net", "Your net result: profit/loss booked on stocks you've fully sold, plus the overall result on stocks you still hold (booked + current). Gains and losses offset each other here.")}
+                {tile("net", <Signed value={lifecycleTotals.overall} />, "Net on current stocks", "For stocks you still hold: today's value minus the money still in them. Gains on one stock offset losses on another.")}
+                {tile("current", <Signed value={lifecycleTotals.unrealized} />, "Current P&L on holdings", "Gain/loss on the shares you still hold, against your real average cost (excludes profit/loss already booked).")}
+                {tile("booked", <Signed value={booked?.total ?? 0} />, `Booked so far (${booked?.stocks ?? 0} stock${booked?.stocks === 1 ? "" : "s"})`, "Profit/loss already locked in by selling, across every stock with complete history, including stocks you no longer hold.")}
+                {tile(
+                  "losing",
+                  <span className={lifecycleTotals.toRecover > 0 ? "is-loss" : ""}>{formatMoney(lifecycleTotals.toRecover)}</span>,
+                  "Losing stocks still need",
+                  "Added up only over stocks that are down: how much those stocks must rise to return all the money you put in them. Gains on other stocks are NOT subtracted here — see the net figures for that.",
+                )}
               </div>
+              <p className="home-note tile-hint">Click a tile to see which stocks make it up.</p>
+              {openTile ? (
+                <TileBreakdown {...breakdownFor(openTile)} onClose={() => setOpenTile(null)} />
+              ) : null}
               <p className="home-note">
                 Covers {withLifecycle.length} of {rows.length} holdings with complete trade history
                 {booked && booked.skipped > 0 ? `; ${booked.skipped} stock${booked.skipped === 1 ? "" : "s"} with missing earlier trades are left out rather than guessed` : ""}.

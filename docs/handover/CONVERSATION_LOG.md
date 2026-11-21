@@ -125,6 +125,9 @@ orders and trades in Preview; recurring problem of the branch alias serving a st
     (mismatches, answers waiting, no sync 7 days, no backup 30 days). NEW badges, "Mark all as seen"; rules and
     settings saved in browser + backups. Owner asked for changes in one shot with a final bundle → single deploy
     + source zip.
+43. **Owner reported** a badge tooltip hidden behind the next row (fixed-column stacking) and asked to see the
+    breakdown of a tile on click → fixed; all five summary tiles are now clickable and open a per-stock list
+    (amount, share of total, bar; "still to recover" shown as red shortfalls).
 
 ## Where things stand at the end of 12 Nov (updated after item 27)
 

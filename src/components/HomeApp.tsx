@@ -403,6 +403,7 @@ export default function HomeApp() {
     let bookedStocks = 0;
     let bookedSkipped = 0;
     let closedBooked = 0;
+    const bookedItems: Array<{ instrumentId: string; label: string; booked: number; gains: number; losses: number; held: boolean }> = [];
     const list = (ledger?.instruments ?? []).map((instrument) => {
       // Lifecycle figures are only trustworthy when this stock's history is complete.
       const complete =
@@ -413,6 +414,14 @@ export default function HomeApp() {
       if (complete && instrument.realizedPnl !== null) {
         if (instrument.netSaleProceeds > 0) {
           bookedTotal += instrument.realizedPnl;
+          bookedItems.push({
+            instrumentId: instrument.instrumentId,
+            label: labelOf(instrument.instrumentId),
+            booked: instrument.realizedPnl,
+            gains: instrument.realizedGains,
+            losses: instrument.realizedLosses,
+            held: instrument.openQuantity > 1e-9,
+          });
           bookedStocks += 1;
           if (instrument.openQuantity <= 1e-9) closedBooked += instrument.realizedPnl;
         }
@@ -434,8 +443,8 @@ export default function HomeApp() {
             : null,
       };
     });
-    return { positions: list, booked: { total: bookedTotal, stocks: bookedStocks, skipped: bookedSkipped, closedTotal: closedBooked } };
-  }, [ledger, instrumentsMissingHistory]);
+    return { positions: list, booked: { total: bookedTotal, stocks: bookedStocks, skipped: bookedSkipped, closedTotal: closedBooked, items: bookedItems } };
+  }, [ledger, instrumentsMissingHistory, labelOf]);
 
   // ---- Alerts (facts from own data and rules; never advice)
   const todayIst = new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10);
