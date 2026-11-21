@@ -749,3 +749,25 @@ h3 {
 .breakdown-bar.is-gain-bar { background: #2f8a62; }
 .breakdown-bar.is-loss-bar { background: #c4452f; }
 @media (max-width: 600px) { .breakdown-bar-cell { display: none; } }
+
+/* Recovery tracker */
+.recovery-panel h3 { margin: 14px 0 4px; font-size: 15px; }
+.recovery-panel .position-table td { white-space: normal; }
+
+.recovery-body { padding: 0 18px 16px; min-width: 0; }
+.recovery-body .position-table-wrap { max-width: 100%; }
+
+/* Tabs */
+.tab-bar { position: sticky; top: 0; z-index: 15; display: flex; gap: 4px; overflow-x: auto; margin: 10px 0 12px; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface, #fff); box-shadow: 0 2px 8px rgba(23, 39, 30, 0.06); }
+.tab-button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.tab-button:hover { background: #f1f5f2; color: inherit; }
+.tab-button.is-active { background: var(--green, #236b4c); color: #fff; }
+.tab-badge { padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #eef2ef; color: #3c4a42; }
+.tab-badge.is-info { background: #e2efff; color: #1f4f8a; }
+.tab-badge.is-warn { background: #fff0d6; color: #8a5a16; }
+.tab-button.is-active .tab-badge { background: rgba(255, 255, 255, 0.25); color: #fff; }
+.tab-empty { padding: 16px; }
+.backup-banner + .tab-bar { top: 52px; }
+.recovery-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; padding-top: 16px; }
+.recovery-head h2 { margin: 0; font-size: 18px; }
+.recovery-head span { color: var(--muted); font-size: 13px; }

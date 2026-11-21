@@ -47,6 +47,9 @@
 - [x] **Alerts** panel (top of page): break-even reached/near, recovery progress, tax timing, concentration,
       own targets, data health; NEW badges; rules/settings saved in browser + backups.
 - [x] Summary tiles open a per-stock breakdown on click; badge tooltips no longer hidden behind rows.
+- [x] Recovery tracker (held below zero; sold at a net loss with re-buy check; prices for sold stocks via Upstox)
+      + sold-stock alert conditions.
+- [x] Tabs: Portfolio, Alerts, Recovery, Checks, Data (badges, remembered tab, anchor links switch tabs).
 - [x] Build label (commit + environment) in the footer and `/api/version`.
 
 ### Hosting and security

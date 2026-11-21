@@ -99,4 +99,17 @@ describe("buildAlerts", () => {
     const ids = buildAlerts(input).filter((alert) => alert.category === "data").map((alert) => alert.id);
     expect(ids).toEqual(["data:mismatch:2", "data:answers:1", "data:sync:2026-11", "data:backup:2026-11"]);
   });
+
+  it("fires sold-stock conditions: below last sale price, back above original buy price", () => {
+    const input = setup([t("buy", A, "2025-01-02", 1, 100)], [{ isin: A, symbol: "AAA", quantity: 1, last: 100 }], {
+      rules: [
+        { id: "s1", instrumentId: B, kind: "below-sale-price", value: 10 },
+        { id: "s2", instrumentId: B, kind: "above-original-cost", value: 0 },
+      ],
+      sold: [{ instrumentId: B, label: "BBB", lastSalePrice: 200, averageBuyPrice: 250, price: 170 }],
+    });
+    expect(buildAlerts(input).filter((alert) => alert.category === "target").map((alert) => alert.id)).toEqual(["target:s1"]);
+    const recovered = { ...input, sold: [{ instrumentId: B, label: "BBB", lastSalePrice: 200, averageBuyPrice: 250, price: 260 }] };
+    expect(buildAlerts(recovered).filter((alert) => alert.category === "target").map((alert) => alert.id)).toEqual(["target:s2"]);
+  });
 });

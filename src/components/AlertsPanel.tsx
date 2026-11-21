@@ -13,6 +13,8 @@ export interface AlertsPanelProps {
   rules: AlertRule[];
   settings: AlertSettings;
   stocks: Array<{ instrumentId: string; label: string }>;
+  /** Fully sold stocks with a net loss (for the sold-stock conditions). */
+  soldStocks: Array<{ instrumentId: string; label: string }>;
   labelOf: (id: string) => string;
   onMarkSeen: () => void;
   onAddRule: (rule: AlertRule) => void;
@@ -26,10 +28,13 @@ const KINDS: Record<AlertRuleKind, { label: string; unit: string }> = {
   "above-real-average": { label: "rises above my real average by", unit: "%" },
   "price-below": { label: "price falls to or below", unit: "₹" },
   "price-above": { label: "price rises to or above", unit: "₹" },
+  "below-sale-price": { label: "(sold at a loss) falls below my last sale price by", unit: "%" },
+  "above-original-cost": { label: "(sold at a loss) is back above my original buy price", unit: "" },
 };
+const SOLD_KINDS: AlertRuleKind[] = ["below-sale-price", "above-original-cost"];
 
 export default function AlertsPanel(props: AlertsPanelProps) {
-  const { alerts, seen, rules, settings, stocks, labelOf, onMarkSeen, onAddRule, onRemoveRule, onSettings } = props;
+  const { alerts, seen, rules, settings, stocks, soldStocks, labelOf, onMarkSeen, onAddRule, onRemoveRule, onSettings } = props;
   const [showAll, setShowAll] = useState(false);
   const [stock, setStock] = useState(stocks[0]?.instrumentId ?? "");
   const [kind, setKind] = useState<AlertRuleKind>("below-real-average");
@@ -40,6 +45,10 @@ export default function AlertsPanel(props: AlertsPanelProps) {
   const sorted = [...alerts].sort((a, b) => Number(seen.has(a.id)) - Number(seen.has(b.id)) || order[a.tone] - order[b.tone]);
   const visible = showAll ? sorted : sorted.slice(0, 6);
   const amount = Number(value);
+  const forSold = SOLD_KINDS.includes(kind);
+  const choices = forSold ? soldStocks : stocks;
+  const chosen = choices.some((item) => item.instrumentId === stock) ? stock : choices[0]?.instrumentId ?? "";
+  const needsValue = KINDS[kind].unit !== "";
 
   return (
     <section className="home-section alerts-panel" aria-labelledby="alerts-title">
@@ -73,7 +82,8 @@ export default function AlertsPanel(props: AlertsPanelProps) {
           <ul className="statement-list">
             {rules.map((rule) => (
               <li key={rule.id}>
-                {labelOf(rule.instrumentId)} — {KINDS[rule.kind].label} {KINDS[rule.kind].unit === "₹" ? `₹${rule.value}` : `${rule.value}%`}
+                {labelOf(rule.instrumentId)} — {KINDS[rule.kind].label}{" "}
+                {KINDS[rule.kind].unit === "₹" ? `₹${rule.value}` : KINDS[rule.kind].unit === "%" ? `${rule.value}%` : ""}
                 <button type="button" className="link-button" onClick={() => onRemoveRule(rule.id)}>Remove</button>
               </li>
             ))}
@@ -82,8 +92,8 @@ export default function AlertsPanel(props: AlertsPanelProps) {
         <div className="card-form">
           <label>
             Tell me when
-            <select value={stock} onChange={(event) => setStock(event.target.value)}>
-              {stocks.map((item) => <option key={item.instrumentId} value={item.instrumentId}>{item.label}</option>)}
+            <select value={chosen} onChange={(event) => setStock(event.target.value)}>
+              {choices.map((item) => <option key={item.instrumentId} value={item.instrumentId}>{item.label}</option>)}
             </select>
           </label>
           <label>
@@ -92,16 +102,18 @@ export default function AlertsPanel(props: AlertsPanelProps) {
               {(Object.keys(KINDS) as AlertRuleKind[]).map((item) => <option key={item} value={item}>{KINDS[item].label}</option>)}
             </select>
           </label>
-          <label>
-            {KINDS[kind].unit === "₹" ? "Price (₹)" : "Percent (%)"}
-            <input inputMode="decimal" value={value} onChange={(event) => setValue(event.target.value)} placeholder={KINDS[kind].unit === "₹" ? "e.g. 900" : "e.g. 15"} />
-          </label>
+          {needsValue ? (
+            <label>
+              {KINDS[kind].unit === "₹" ? "Price (₹)" : "Percent (%)"}
+              <input inputMode="decimal" value={value} onChange={(event) => setValue(event.target.value)} placeholder={KINDS[kind].unit === "₹" ? "e.g. 900" : "e.g. 15"} />
+            </label>
+          ) : null}
           <button
             type="button"
             className="secondary-action-button"
-            disabled={!stock || !(amount > 0)}
+            disabled={!chosen || (needsValue && !(amount > 0))}
             onClick={() => {
-              onAddRule({ id: `rule-${Date.now()}`, instrumentId: stock, kind, value: amount });
+              onAddRule({ id: `rule-${Date.now()}`, instrumentId: chosen, kind, value: needsValue ? amount : 0 });
               setValue("");
             }}
           >

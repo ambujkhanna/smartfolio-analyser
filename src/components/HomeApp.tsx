@@ -22,6 +22,8 @@ import ImportReview from "./ImportReview";
 import CorporateActionsPanel from "./CorporateActionsPanel";
 import VerificationPanel from "./VerificationPanel";
 import AlertsPanel from "./AlertsPanel";
+import RecoveryTracker, { type SoldPrice } from "./RecoveryTracker";
+import { heldRecovery, soldAtLoss } from "../engine/recovery";
 import { buildAlerts, type AlertRule, type AlertSettings } from "../engine/alerts";
 import { reconcileHoldings } from "../engine/reconcileHoldings";
 import { verifyPortfolio } from "../engine/verification";
@@ -35,6 +37,18 @@ import ZerodhaPanel from "./ZerodhaPanel";
  * Page shell: portfolio first (auto-loaded from the connected broker), trade
  * history as a one-time add-on, raw broker data tucked away under "Advanced".
  */
+const TABS = ["portfolio", "alerts", "recovery", "checks", "data"] as const;
+type Tab = (typeof TABS)[number];
+const TAB_KEY = "smartfolio-tab";
+const ANCHOR_TAB: Record<string, Tab> = {
+  "needs-confirmation": "checks",
+  verification: "checks",
+  alerts: "alerts",
+  recovery: "recovery",
+  "trade-history": "data",
+  portfolio: "portfolio",
+};
+
 /** Adds statements, replacing any with the same period. */
 function mergeStatements(existing: PnlStatement[], incoming: PnlStatement[]): PnlStatement[] {
   const key = (statement: PnlStatement) => `${statement.from}|${statement.to}`;
@@ -125,6 +139,7 @@ export default function HomeApp() {
       // The useful result is the portfolio table (real cost, booked, to recover).
       if (connectedRef.current) {
         setHistoryOpen(false);
+        setTab("portfolio");
         requestAnimationFrame(() => portfolioRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
       }
     },
@@ -464,6 +479,48 @@ export default function HomeApp() {
         : [],
     [holdingQuantities, positions],
   );
+  // ---- Recovery tracker (goal: every underperforming stock back to at least zero loss)
+  const heldLosers = useMemo(() => heldRecovery(alertRows), [alertRows]);
+  const soldLosers = useMemo(() => soldAtLoss(ledger, saved.transactions, labelOf), [ledger, saved.transactions, labelOf]);
+  const [soldPrices, setSoldPrices] = useState<Record<string, SoldPrice | null>>({});
+  const [loadingPrices, setLoadingPrices] = useState(false);
+  const requestedPricesRef = useRef(new Set<string>());
+  const fetchSoldPrices = useCallback(async (ids: string[]) => {
+    const wanted = ids.filter((id) => !requestedPricesRef.current.has(id));
+    if (wanted.length === 0) return;
+    wanted.forEach((id) => requestedPricesRef.current.add(id));
+    setLoadingPrices(true);
+    const found: Record<string, SoldPrice | null> = {};
+    try {
+      for (let offset = 0; offset < wanted.length; offset += 50) {
+        const batch = wanted.slice(offset, offset + 50);
+        const response = await fetch("/api/quotes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ references: batch.map((isin) => ({ isin })) }),
+        }).catch(() => null);
+        const payload = response?.ok
+          ? ((await response.json().catch(() => null)) as { quotes?: Array<{ index: number; result: { status: string; quote?: { price: number } } }> } | null)
+          : null;
+        for (const id of batch) found[id] = null;
+        for (const item of payload?.quotes ?? []) {
+          const id = batch[item.index];
+          if (id && (item.result.status === "available" || item.result.status === "stale") && item.result.quote) {
+            found[id] = { price: item.result.quote.price, stale: item.result.status === "stale" };
+          }
+        }
+      }
+    } finally {
+      setSoldPrices((current) => ({ ...current, ...found }));
+      setLoadingPrices(false);
+    }
+  }, []);
+  // Prices for sold stocks that have an alert rule, so those alerts can fire without opening the tracker.
+  useEffect(() => {
+    const ids = saved.alertRules.filter((rule) => rule.kind === "below-sale-price" || rule.kind === "above-original-cost").map((rule) => rule.instrumentId);
+    if (ids.length > 0) void fetchSoldPrices(ids);
+  }, [saved.alertRules, fetchSoldPrices]);
+
   const alerts = useMemo(
     () =>
       storeStatus === "ready"
@@ -475,6 +532,7 @@ export default function HomeApp() {
             rules: saved.alertRules,
             settings: saved.alertSettings,
             snapshots: saved.snapshots,
+            sold: soldLosers.map((item) => ({ ...item, price: soldPrices[item.instrumentId]?.price ?? null })),
             health: {
               mismatches: verification.counts.mismatch,
               needsAnswer: suggestions.length,
@@ -485,7 +543,7 @@ export default function HomeApp() {
             },
           })
         : [],
-    [storeStatus, todayIst, alertRows, ledger, saved, verification.counts.mismatch, suggestions.length, holdingQuantities],
+    [storeStatus, todayIst, alertRows, ledger, saved, verification.counts.mismatch, suggestions.length, holdingQuantities, soldLosers, soldPrices],
   );
   // One "still to recover" snapshot per day (derived data: does not count as an unsaved change).
   useEffect(() => {
@@ -497,6 +555,7 @@ export default function HomeApp() {
     const snapshots = [...savedRef.current.snapshots, { date: todayIst, values }].slice(-120);
     void persist({ ...savedRef.current, snapshots });
   }, [storeStatus, alertRows, todayIst, persist]);
+  const newAlertCount = alerts.filter((alert) => !saved.seenAlerts.includes(alert.id)).length;
   async function markAlertsSeen() {
     await persist({ ...savedRef.current, seenAlerts: [...new Set([...savedRef.current.seenAlerts, ...alerts.map((alert) => alert.id)])].slice(-2000) });
   }
@@ -511,9 +570,44 @@ export default function HomeApp() {
   }
 
 
+  // ---- Tabs (portfolio, alerts, recovery, checks, data); last tab remembered in this browser
+  const [tab, setTab] = useState<Tab>("portfolio");
+  const goTo = useCallback((next: Tab, anchor?: string) => {
+    setTab(next);
+    try {
+      window.localStorage.setItem(TAB_KEY, next);
+    } catch {
+      // storage blocked: the tab simply isn't remembered
+    }
+    requestAnimationFrame(() => {
+      const target = anchor ? document.getElementById(anchor) : document.getElementById("app-tabs");
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+  useEffect(() => {
+    try {
+      const remembered = window.localStorage.getItem(TAB_KEY);
+      if (remembered && (TABS as readonly string[]).includes(remembered)) setTab(remembered as Tab);
+    } catch {
+      // ignore
+    }
+    // Links such as "#needs-confirmation" open the tab that holds that section.
+    const onHash = () => {
+      const anchor = window.location.hash.slice(1);
+      const owner = ANCHOR_TAB[anchor];
+      if (owner) goTo(owner, anchor);
+    };
+    onHash();
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, [goTo]);
+  useEffect(() => {
+    if (tab === "recovery") void fetchSoldPrices(soldLosers.map((item) => item.instrumentId));
+  }, [tab, soldLosers, fetchSoldPrices]);
+
   function openHistory() {
     setHistoryOpen(true);
-    requestAnimationFrame(() => historyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    goTo("data", "trade-history");
   }
 
   return (
@@ -529,56 +623,104 @@ export default function HomeApp() {
           </button>
         </div>
       ) : null}
-      {storeStatus === "ready" && (alerts.length > 0 || saved.alertRules.length > 0 || holdingQuantities) ? (
-        <AlertsPanel
-          alerts={alerts}
-          seen={new Set(saved.seenAlerts)}
-          rules={saved.alertRules}
-          settings={saved.alertSettings}
-          stocks={(holdingQuantities ?? []).map((holding) => ({ instrumentId: holding.isin, label: holding.symbol ?? labelOf(holding.isin) }))}
-          labelOf={labelOf}
-          onMarkSeen={() => void markAlertsSeen()}
-          onAddRule={(rule) => void addAlertRule(rule)}
-          onRemoveRule={(id) => void removeAlertRule(id)}
-          onSettings={(settings) => void saveAlertSettings(settings)}
-        />
-      ) : null}
-      <div ref={portfolioRef}>
-        <PortfolioHome
-          positions={positions}
-          hasHistory={Boolean(ledger)}
-          instrumentsMissingHistory={instrumentsMissingHistory}
-          booked={booked}
-          onAddHistory={openHistory}
-          onConnectedChange={handleConnectedChange}
-          onHoldingsLoaded={handleHoldingsLoaded}
-          confirmCount={suggestions.length}
-          verification={verification}
-        />
+      <nav className="tab-bar" id="app-tabs" role="tablist" aria-label="Sections">
+        {TABS.map((key) => {
+          const label = { portfolio: "Portfolio", alerts: "Alerts", recovery: "Recovery", checks: "Checks", data: "Data" }[key];
+          const badge =
+            key === "alerts"
+              ? newAlertCount > 0
+                ? { text: `${newAlertCount} new`, tone: "info" }
+                : null
+              : key === "checks"
+                ? suggestions.length + verification.counts.mismatch > 0
+                  ? { text: String(suggestions.length + verification.counts.mismatch), tone: "warn" }
+                  : null
+                : key === "recovery"
+                  ? heldLosers.length + soldLosers.length > 0
+                    ? { text: String(heldLosers.length + soldLosers.length), tone: "muted" }
+                    : null
+                  : null;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              className={"tab-button" + (tab === key ? " is-active" : "")}
+              onClick={() => goTo(key)}
+            >
+              {label}
+              {badge ? <span className={"tab-badge is-" + badge.tone}>{badge.text}</span> : null}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div role="tabpanel" hidden={tab !== "portfolio"}>
+        <div ref={portfolioRef}>
+          <PortfolioHome
+            positions={positions}
+            hasHistory={Boolean(ledger)}
+            instrumentsMissingHistory={instrumentsMissingHistory}
+            booked={booked}
+            onAddHistory={openHistory}
+            onConnectedChange={handleConnectedChange}
+            onHoldingsLoaded={handleHoldingsLoaded}
+            confirmCount={suggestions.length}
+            verification={verification}
+          />
+        </div>
       </div>
 
-      {saved.transactions.length > 0 || holdingQuantities ? (
-        <VerificationPanel
-          result={verification}
-          statements={saved.statements}
-          onUpload={(event) => void uploadStatements(event)}
-          onRemoveStatement={(index) => void removeStatement(index)}
-          message={statementMessage}
+      <div role="tabpanel" hidden={tab !== "alerts"} id="alerts">
+        {storeStatus === "ready" ? (
+          <AlertsPanel
+            alerts={alerts}
+            seen={new Set(saved.seenAlerts)}
+            rules={saved.alertRules}
+            settings={saved.alertSettings}
+            stocks={(holdingQuantities ?? []).map((holding) => ({ instrumentId: holding.isin, label: holding.symbol ?? labelOf(holding.isin) }))}
+            soldStocks={soldLosers.map((item) => ({ instrumentId: item.instrumentId, label: item.label }))}
+            labelOf={labelOf}
+            onMarkSeen={() => void markAlertsSeen()}
+            onAddRule={(rule) => void addAlertRule(rule)}
+            onRemoveRule={(id) => void removeAlertRule(id)}
+            onSettings={(settings) => void saveAlertSettings(settings)}
+          />
+        ) : null}
+      </div>
+
+      <div role="tabpanel" hidden={tab !== "recovery"} id="recovery">
+        <RecoveryTracker held={heldLosers} sold={soldLosers} prices={soldPrices} loadingPrices={loadingPrices} />
+      </div>
+
+      <div role="tabpanel" hidden={tab !== "checks"}>
+        {suggestions.length === 0 && adjustments.length === 0 && !(saved.transactions.length > 0 || holdingQuantities) ? (
+          <p className="home-note tab-empty">Nothing to check yet — connect Zerodha and add your tradebook files.</p>
+        ) : null}
+        <CorporateActionsPanel
+          suggestions={suggestions}
+          adjustments={adjustments}
+          instruments={(ledger?.instruments ?? []).map((instrument) => ({ instrumentId: instrument.instrumentId, label: labelOf(instrument.instrumentId) }))}
+          labelOf={labelOf}
+          onApply={(transaction) => void applyAdjustment(transaction)}
+          onApplyMany={(entries) => void applyAnswers(entries)}
+          transactions={saved.transactions}
+          onDismiss={(id) => void dismissSuggestion(id)}
+          onUndo={(id) => void undoAdjustment(id)}
         />
-      ) : null}
+        {saved.transactions.length > 0 || holdingQuantities ? (
+          <VerificationPanel
+            result={verification}
+            statements={saved.statements}
+            onUpload={(event) => void uploadStatements(event)}
+            onRemoveStatement={(index) => void removeStatement(index)}
+            message={statementMessage}
+          />
+        ) : null}
+      </div>
 
-      <CorporateActionsPanel
-        suggestions={suggestions}
-        adjustments={adjustments}
-        instruments={(ledger?.instruments ?? []).map((instrument) => ({ instrumentId: instrument.instrumentId, label: labelOf(instrument.instrumentId) }))}
-        labelOf={labelOf}
-        onApply={(transaction) => void applyAdjustment(transaction)}
-        onApplyMany={(entries) => void applyAnswers(entries)}
-        transactions={saved.transactions}
-        onDismiss={(id) => void dismissSuggestion(id)}
-        onUndo={(id) => void undoAdjustment(id)}
-      />
-
+      <div role="tabpanel" hidden={tab !== "data"}>
       <section className="home-section saved-history" aria-label="Saved trade history">
         <div>
           <strong>Saved in this browser</strong>
@@ -609,13 +751,14 @@ export default function HomeApp() {
 
       <details
         ref={historyRef}
+        id="trade-history"
         className="home-section"
         open={historyOpen}
         onToggle={(event) => setHistoryOpen(event.currentTarget.open)}
       >
         <summary>
           <strong>Trade history</strong>
-          <span>{ledger ? "Saved — results are in the portfolio table above. Open to add more files or see calculation details" : "Upload your tradebook once to calculate your real average cost"}</span>
+          <span>{ledger ? "Saved — results are in the Portfolio tab. Open to add more files or see calculation details" : "Upload your tradebook once to calculate your real average cost"}</span>
         </summary>
         <ImportReview onTransactionsImported={handleTransactionsImported} />
       </details>
@@ -627,6 +770,7 @@ export default function HomeApp() {
         </summary>
         <ZerodhaPanel />
       </details>
+      </div>
     </>
   );
 }

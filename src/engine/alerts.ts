@@ -19,7 +19,15 @@ export interface PortfolioAlert {
   symbol?: string;
 }
 
-export type AlertRuleKind = "below-real-average" | "above-real-average" | "price-below" | "price-above";
+export type AlertRuleKind =
+  | "below-real-average"
+  | "above-real-average"
+  | "price-below"
+  | "price-above"
+  /** Sold stocks: price X% below the last sale price. */
+  | "below-sale-price"
+  /** Sold stocks: price back at or above the original average buy price. */
+  | "above-original-cost";
 
 export interface AlertRule {
   id: string;
@@ -50,6 +58,8 @@ export interface AlertInput {
   rules: AlertRule[];
   settings: AlertSettings;
   snapshots: RecoverySnapshot[];
+  /** Fully sold stocks with a net loss, with today's price when fetched. */
+  sold?: Array<{ instrumentId: string; label: string; lastSalePrice: number; averageBuyPrice: number; price: number | null }>;
   health: {
     mismatches: number;
     needsAnswer: number;
@@ -92,6 +102,7 @@ function financialYearEnd(today: string): string {
 
 export function buildAlerts(input: AlertInput): PortfolioAlert[] {
   const { today, rows, ledger, transactions, rules, settings, snapshots, health } = input;
+  const soldById = new Map((input.sold ?? []).map((item) => [item.instrumentId, item]));
   const alerts: PortfolioAlert[] = [];
   const name = (row: ReconciledHolding) => row.symbols[0] ?? row.isin;
   const byIsin = new Map(rows.map((row) => [row.isin, row]));
@@ -221,6 +232,31 @@ export function buildAlerts(input: AlertInput): PortfolioAlert[] {
 
   // 5. Owner's own targets.
   for (const rule of rules) {
+    if (rule.kind === "below-sale-price" || rule.kind === "above-original-cost") {
+      const item = soldById.get(rule.instrumentId);
+      if (!item || item.price === null) continue;
+      if (rule.kind === "below-sale-price" && item.price <= item.lastSalePrice * (1 - rule.value / 100)) {
+        alerts.push({
+          id: `target:${rule.id}`,
+          tone: "info",
+          category: "target",
+          symbol: item.label,
+          title: `${item.label}: your alert triggered`,
+          detail: `Price ${money.format(item.price)} is ${percent(((item.lastSalePrice - item.price) / item.lastSalePrice) * 100)} below your last sale price ${money.format(item.lastSalePrice)} (your alert: ${rule.value}%).`,
+        });
+      }
+      if (rule.kind === "above-original-cost" && item.price >= item.averageBuyPrice) {
+        alerts.push({
+          id: `target:${rule.id}`,
+          tone: "info",
+          category: "target",
+          symbol: item.label,
+          title: `${item.label}: back above your original buy price`,
+          detail: `Price ${money.format(item.price)} is at or above your average buy price ${money.format(item.averageBuyPrice)} for the shares you sold at a loss.`,
+        });
+      }
+      continue;
+    }
     const row = byIsin.get(rule.instrumentId);
     const price = row?.brokerLastPrice ?? null;
     if (!row || price === null) continue;

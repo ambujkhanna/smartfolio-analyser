@@ -128,6 +128,15 @@ orders and trades in Preview; recurring problem of the branch alias serving a st
 43. **Owner reported** a badge tooltip hidden behind the next row (fixed-column stacking) and asked to see the
     breakdown of a tile on click → fixed; all five summary tiles are now clickable and open a per-stock list
     (amount, share of total, bar; "still to recover" shown as red shortfalls).
+44. **Owner asked** the app to suggest re-buying stocks sold at a loss (or booking profit) → declined as advice
+    (P18); built a **Recovery tracker** instead, with the owner's stated goal "every underperforming stock to at
+    least zero loss": held stocks below zero (zero-loss price = real break-even, % needed, closest first) and stocks
+    sold at a net loss (booked loss, avg buy/sale, last sale, today's price from Upstox, "re-buy check": price a
+    same-size re-buy at today's price must reach for zero loss). New alert conditions for sold stocks: X% below last
+    sale price; back above original buy price.
+45. **Owner asked** for navigation because the page was long → tabs: Portfolio · Alerts · Recovery · Checks · Data,
+    with badges (new alerts, items needing attention, stocks below zero); last tab remembered; links like
+    "#needs-confirmation" open the right tab; tabs are hidden, not reloaded (Zerodha isn't re-fetched).
 
 ## Where things stand at the end of 12 Nov (updated after item 27)
 
